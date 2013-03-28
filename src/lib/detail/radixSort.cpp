@@ -8,7 +8,10 @@ namespace yandex{namespace intern{namespace detail
 {
     namespace
     {
-        void radixSortIteration(const Data *const src, Data *const dst, const std::size_t size, const std::size_t byteShift) noexcept
+        void radixSortIteration(const Data *__restrict__ const src,
+                                Data *__restrict__ const dst,
+                                const std::size_t size,
+                                const std::size_t byteShift) noexcept
         {
             constexpr std::size_t bitsInByte = 8;
             constexpr std::uint8_t nullUChar = 0;
@@ -40,7 +43,9 @@ namespace yandex{namespace intern{namespace detail
         }
     }
 
-    bool radixSort(const Data *const src, Data *const dst, const std::size_t size) noexcept
+    bool radixSort(const Data *__restrict__ const src,
+                   Data *__restrict__ const dst,
+                   const std::size_t size) noexcept
     {
         Data *buffer = new (std::nothrow) Data[size];
         if (!buffer)

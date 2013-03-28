@@ -5,5 +5,7 @@
 namespace yandex{namespace intern{namespace detail
 {
     /// \return false on out of memory
-    bool radixSort(const Data *const src, Data *const dst, const std::size_t size) noexcept;
+    bool radixSort(const Data *__restrict__ const src,
+                   Data *__restrict__ const dst,
+                   const std::size_t size) noexcept __attribute__((nonnull));
 }}}
