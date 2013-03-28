@@ -21,6 +21,12 @@ bunsan_add_executable(text2binary
     src/bin/text2binary.cpp
 )
 
+bunsan_add_executable(sort
+    src/bin/sort.cpp
+
+    src/lib/Sorter.cpp
+)
+
 #bunsan_install_headers()
 #bunsan_install_targets(${PROJECT_NAME})
 
