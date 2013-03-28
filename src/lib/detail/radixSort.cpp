@@ -13,12 +13,7 @@ namespace yandex{namespace intern{namespace detail{namespace radix
                        const std::size_t size,
                        const std::size_t blockShift) noexcept
     {
-        constexpr std::size_t bitsInBlock = blockSize;
-        constexpr std::size_t fullBlock = (static_cast<std::size_t>(1) << blockSize) - 1;
-        constexpr std::size_t bucketsSize = static_cast<std::size_t>(1) << blockSize;
-        constexpr Data mask = static_cast<Data>(fullBlock);
-
-        const std::size_t bitShift = bitsInBlock * blockShift;
+        const std::size_t bitShift = blockBitSize * blockShift;
 
         std::size_t bucketCapacity[bucketsSize], bucketSize[bucketsSize];
         memset(bucketCapacity, 0, sizeof(bucketCapacity));
