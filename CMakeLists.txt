@@ -14,6 +14,7 @@ bunsan_add_shared_library(${PROJECT_NAME}
     src/lib/Sorter.cpp
 
     src/lib/detail/radixSort.cpp
+    src/lib/detail/stdSort.cpp
 )
 
 bunsan_use(${PROJECT_NAME})

@@ -51,9 +51,9 @@ namespace yandex{namespace intern{namespace test
     template <typename Sort>
     void benchSort(const Sort &sort, const char *const name)
     {
-        for (std::size_t size = 1024; size <= 1024 * 1024; size *= 4)
+        for (std::size_t size = 1024; size <= 16 * 1024 * 1024; size *= 4)
         {
-            const std::size_t iterations = 16 * 1024 * 1024 / size;
+            const std::size_t iterations = 32 * 1024 * 1024 / size;
             std::vector<Data> original(size);
             std::vector<Data> sorted(size);
             std::generate(original.begin(), original.end(), [&](){return rnd(rng);});
