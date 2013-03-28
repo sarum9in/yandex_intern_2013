@@ -13,6 +13,10 @@ bunsan_add_executable(is_sorted
     src/bin/is_sorted.cpp
 )
 
+bunsan_add_executable(binary2text
+    src/bin/binary2text.cpp
+)
+
 bunsan_add_executable(text2binary
     src/bin/text2binary.cpp
 )
