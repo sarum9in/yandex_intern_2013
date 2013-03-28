@@ -4,10 +4,14 @@
 
 namespace yandex{namespace intern{namespace detail{namespace radix
 {
-    constexpr std::size_t blockSize = 8;
+    constexpr std::size_t blockBitSize = 8;
     constexpr std::size_t dataBitSize = 8 * sizeof(Data);
-    static_assert(dataBitSize % blockSize == 0, "");
-    constexpr std::size_t iterations = dataBitSize / blockSize;
+    static_assert(dataBitSize % blockBitSize == 0, "");
+    constexpr std::size_t iterations = dataBitSize / blockBitSize;
+
+    constexpr std::size_t fullBlock = (static_cast<std::size_t>(1) << blockBitSize) - 1;
+    constexpr std::size_t bucketsSize = static_cast<std::size_t>(1) << blockBitSize;
+    constexpr Data mask = static_cast<Data>(fullBlock);
 
     void sortIteration(const Data *__restrict__ const src,
                        Data *__restrict__ const dst,
