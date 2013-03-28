@@ -13,8 +13,8 @@ BOOST_AUTO_TEST_SUITE(sort)
 
 BOOST_AUTO_TEST_CASE(radixSort)
 {
-    BOOST_REQUIRE(ya::test::testSort(yad::radixSort));
-    ya::test::benchSort(yad::radixSort, "radixSort()");
+    BOOST_REQUIRE(ya::test::testSort(yad::radix::sort));
+    ya::test::benchSort(yad::radix::sort, "radix::sort()");
 }
 
 BOOST_AUTO_TEST_CASE(stdSort)
