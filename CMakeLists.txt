@@ -32,6 +32,10 @@ bunsan_add_executable(text2binary
     src/bin/text2binary.cpp
 )
 
+bunsan_add_executable(generate
+    src/bin/generate.cpp
+)
+
 bunsan_add_executable(sort src/bin/sort.cpp)
 
 bunsan_install_headers()
