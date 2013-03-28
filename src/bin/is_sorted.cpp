@@ -5,7 +5,6 @@
 #include "bunsan/filesystem/fstream.hpp"
 
 #include <boost/assert.hpp>
-#include <boost/scoped_array.hpp>
 
 #include <iostream>
 
@@ -13,11 +12,9 @@ namespace yandex{namespace intern
 {
     bool isSorted(const boost::filesystem::path &path)
     {
-        boost::scoped_array<char> buf(new char[BUFSIZ]);
         BUNSAN_EXCEPTIONS_WRAP_BEGIN()
         {
             bunsan::filesystem::ifstream fin(path, std::ios_base::binary);
-            fin.rdbuf()->pubsetbuf(buf.get(), BUFSIZ);
             Data previousData;
             fin.read(reinterpret_cast<char *>(&previousData), sizeof(previousData));
             BOOST_ASSERT(fin.gcount() == sizeof(previousData));
