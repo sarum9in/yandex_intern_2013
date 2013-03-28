@@ -1,4 +1,5 @@
 #include "yandex/intern/types.hpp"
+#include "yandex/intern/Error.hpp"
 
 #include "bunsan/enable_error_info.hpp"
 #include "bunsan/filesystem/fstream.hpp"
@@ -20,17 +21,19 @@ namespace yandex{namespace intern
             Data previousData;
             fin.read(reinterpret_cast<char *>(&previousData), sizeof(previousData));
             BOOST_ASSERT(fin.gcount() == sizeof(previousData));
-            while (fin)
+            Data data;
+            while (fin.read(reinterpret_cast<char *>(&data), sizeof(data)))
             {
-                Data data;
-                fin.read(reinterpret_cast<char *>(&data), sizeof(data));
-                BOOST_ASSERT(fin.gcount() == sizeof(data));
+                if (fin.gcount() != sizeof(data))
+                    BOOST_THROW_EXCEPTION(InvalidFileSizeError());
                 if (previousData > data)
                     return false;
                 previousData = data;
             }
+            if (fin.gcount() != 0 && fin.gcount() != sizeof(data))
+                BOOST_THROW_EXCEPTION(InvalidFileSizeError());
         }
-        BUNSAN_EXCEPTIONS_WRAP_END()
+        BUNSAN_EXCEPTIONS_WRAP_END_ERROR_INFO(Error::path(path))
         return true;
     }
 }}
