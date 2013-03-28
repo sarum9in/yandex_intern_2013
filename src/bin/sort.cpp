@@ -1,12 +1,4 @@
-#include "yandex/intern/types.hpp"
-
-#include "bunsan/enable_error_info.hpp"
-#include "bunsan/filesystem/fstream.hpp"
-
-#include <boost/assert.hpp>
-#include <boost/filesystem/operations.hpp>
-#include <boost/scoped_array.hpp>
-#include <boost/scope_exit.hpp>
+#include "yandex/intern/Sorter.hpp"
 
 #include <iostream>
 
@@ -20,10 +12,7 @@ int main(int argc, char *argv[])
     }
     try
     {
-        // TODO
-#warning TODO
-        std::cerr << "Not implemented!" << std::endl;
-        return 100;
+        yandex::intern::Sorter::sort(argv[1], argv[2]);
     }
     catch (std::exception &e)
     {
