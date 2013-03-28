@@ -4,10 +4,19 @@ include(${CMAKE_SOURCE_DIR}/system-config.cmake OPTIONAL)
 
 cmake_minimum_required(VERSION 2.8)
 
-include(BunsanCommon)
+include(YandexContestCommon)
 
 bunsan_use_bunsan(common)
 bunsan_use_boost(system filesystem serialization unit_test_framework program_options thread)
+bunsan_use(yandex_contest_common yandex_contest_system)
+
+bunsan_add_shared_library(${PROJECT_NAME}
+    src/lib/Sorter.cpp
+
+    src/lib/detail/radixSort.cpp
+)
+
+bunsan_use(${PROJECT_NAME})
 
 bunsan_add_executable(is_sorted
     src/bin/is_sorted.cpp
@@ -21,13 +30,9 @@ bunsan_add_executable(text2binary
     src/bin/text2binary.cpp
 )
 
-bunsan_add_executable(sort
-    src/bin/sort.cpp
+bunsan_add_executable(sort src/bin/sort.cpp)
 
-    src/lib/Sorter.cpp
-)
-
-#bunsan_install_headers()
-#bunsan_install_targets(${PROJECT_NAME})
+bunsan_install_headers()
+bunsan_install_targets(${PROJECT_NAME})
 
 bunsan_include_tests()
