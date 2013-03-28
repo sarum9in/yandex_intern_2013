@@ -43,14 +43,16 @@ namespace yandex{namespace intern{namespace sorters
         bool radixStatus = false;
         const Data *srcData = nullptr;
         Data *dstData = nullptr;
+        Data *dstData_ = nullptr;
         {
             srcData = reinterpret_cast<const Data *>(::mmap(nullptr, status.size, PROT_READ, MAP_PRIVATE, src.get(), 0));
             if (srcData == MAP_FAILED)
                 goto out;
+            dstData_ = new (std::nothrow) Data[size];
             dstData = reinterpret_cast<Data *>(::mmap(nullptr, status.size, PROT_READ | PROT_WRITE, MAP_SHARED, dst.get(), 0));
             if (dstData == MAP_FAILED)
                 goto out;
-            radixStatus = detail::radixSort(srcData, dstData, size);
+            radixStatus = detail::radix::sortSlowMemory(srcData, dstData_, size);
             ret = 0;
         out:
             if (dstData && dstData != MAP_FAILED)
