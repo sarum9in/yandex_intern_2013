@@ -16,7 +16,8 @@ namespace yandex{namespace intern
             bunsan::filesystem::ifstream fin(path, std::ios_base::binary);
             Data previousData;
             fin.read(reinterpret_cast<char *>(&previousData), sizeof(previousData));
-            BOOST_ASSERT(fin.gcount() == sizeof(previousData));
+            if (fin.gcount() != sizeof(previousData))
+                BOOST_THROW_EXCEPTION(InvalidFileSizeError());
             Data data;
             while (fin.read(reinterpret_cast<char *>(&data), sizeof(data)))
             {
