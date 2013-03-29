@@ -1,6 +1,7 @@
 #include "bunsan/config.hpp"
 
 #include "yandex/intern/sorters/MergeSorter.hpp"
+#include "yandex/intern/Error.hpp"
 
 #include "bunsan/enable_error_info.hpp"
 #include "bunsan/filesystem/fstream.hpp"
@@ -17,8 +18,10 @@ namespace yandex{namespace intern{namespace sorters
         root_(dst.parent_path() / boost::filesystem::unique_path())
     {
         BOOST_VERIFY(boost::filesystem::create_directories(root_)); // verify name is unique
-        const boost::shared_ptr<Task> task(new Task);
+        const TaskPointer task(new Task);
         task->data = source();
+        task->keep = true;
+        tasks_.push(task);
     }
 
     MergeSorter::~MergeSorter()
@@ -41,11 +44,12 @@ namespace yandex{namespace intern{namespace sorters
         {
             typedef MergeSorter::TaskQueue TaskQueue;
             typedef MergeSorter::Task Task;
+            typedef MergeSorter::TaskPointer TaskPointer;
 
             MergeSorter *const mergeSorter_;
-            const boost::shared_ptr<Task> &task_;
+            const TaskPointer &task_;
 
-            Visitor(MergeSorter *const mergeSorter, const boost::shared_ptr<Task> &task):
+            Visitor(MergeSorter *const mergeSorter, const TaskPointer &task):
                 mergeSorter_(mergeSorter), task_(task) {}
 
             Visitor(const Visitor &)=default;
@@ -55,9 +59,11 @@ namespace yandex{namespace intern{namespace sorters
             {
                 bool isSorted = false;
                 const std::uintmax_t size = boost::filesystem::file_size(single);
+                // TODO here we should allocate memory from pool
+                // it is the only point with high memory usage
                 if (size * 2/*FIXME*/ < mergeSorter_->threadSizeLimit_)
                 {
-                    // TODO sort();
+                    detail::radix::sortFile(single, single, 0, task_->blockShift);
                     if (task_->parent)
                     {
                         isSorted = true;
@@ -71,9 +77,45 @@ namespace yandex{namespace intern{namespace sorters
                 {
                     if (task_->blockShift)
                     {
+                        // TODO high disk usage point, probably should be done by single thread
                         const std::size_t blockShift = task_->blockShift - 1;
                         const std::size_t bitShift = detail::radix::blockBitSize * blockShift;
-                        // TODO split file for detail::radix::bucketsSize files by
+                        std::array<TaskPointer, detail::radix::bucketsSize> children;
+                        BUNSAN_EXCEPTIONS_WRAP_BEGIN()
+                        {
+                            bunsan::filesystem::ifstream fin(single, std::ios_base::binary);
+                            std::array<bunsan::filesystem::ofstream, detail::radix::bucketsSize> fouts;
+                            for (std::size_t i = 0; i < detail::radix::bucketsSize; ++i)
+                            {
+                                const boost::filesystem::path path = mergeSorter_->root_ / boost::filesystem::unique_path();
+                                fouts[i].open(path, std::ios_base::binary);
+                                children[i].reset(new Task);
+                                children[i]->data = path;
+                                children[i]->parent = task_;
+                                children[i]->blockShift = blockShift;
+                                children[i]->id = i;
+                            }
+                            Data data;
+                            while (fin.read(reinterpret_cast<char *>(&data), sizeof(data)))
+                            {
+                                const std::size_t value = (data >> bitShift) & detail::radix::mask;
+                                // TODO we can write only suffix here
+                                fouts[value].write(reinterpret_cast<const char *>(&data), sizeof(data));
+                            }
+                            if (!fin.eof() && fin.fail())
+                                BOOST_THROW_EXCEPTION(InvalidFileSizeError() <<
+                                                      InvalidFileSizeError::path(single));
+                            fin.close();
+                            for (bunsan::filesystem::ofstream &fout: fouts)
+                                fout.close();
+                            if (!task_->keep)
+                                boost::filesystem::remove(single);
+                        }
+                        BUNSAN_EXCEPTIONS_WRAP_END()
+                        task_->data = Task::CompositeData();
+                        // last thing to do (we have no synchronization here)
+                        for (const TaskPointer &child: children)
+                            mergeSorter_->tasks_.push(child);
                     }
                     else
                     {
@@ -83,7 +125,7 @@ namespace yandex{namespace intern{namespace sorters
                 }
                 if (isSorted)
                 {
-                    // TODO synchronize
+                    const boost::lock_guard<boost::mutex> lk(mergeSorter_->tasksDataLock_);
                     Task::CompositeData *const data = boost::get<Task::CompositeData>(&task_->parent->data);
                     BOOST_ASSERT(data);
                     std::vector<boost::filesystem::path> &childList = (*data)[task_->id];
@@ -98,7 +140,7 @@ namespace yandex{namespace intern{namespace sorters
                 // data was sorted, this task finishes it
                 if (task_->parent)
                 {
-                    // TODO synchronize
+                    const boost::lock_guard<boost::mutex> lk(mergeSorter_->tasksDataLock_);
                     Task::CompositeData *const data = boost::get<Task::CompositeData>(&task_->parent->data);
                     BOOST_ASSERT(data);
                     std::vector<boost::filesystem::path> &childList = (*data)[task_->id];
@@ -115,7 +157,8 @@ namespace yandex{namespace intern{namespace sorters
 
             void updateParent() const
             {
-                if (task_->parent.use_count() == 1)
+                --task_->parent->children;
+                if (task_->parent->children.load() == 1)
                     mergeSorter_->tasks_.push(task_->parent);
             }
 
@@ -123,10 +166,12 @@ namespace yandex{namespace intern{namespace sorters
             {
                 // we must keep original file
                 boost::filesystem::copy_file(single, mergeSorter_->destination());
+                mergeSorter_->tasks_.close();
             }
 
             void finish(const Task::CompositeData &composite) const
             {
+                // high disk usage point, but this happens once, so no big optimization possible
                 BUNSAN_EXCEPTIONS_WRAP_BEGIN()
                 {
                     bunsan::filesystem::ofstream fout(mergeSorter_->destination(), std::ios_base::binary);
@@ -140,16 +185,18 @@ namespace yandex{namespace intern{namespace sorters
                     }
                 }
                 BUNSAN_EXCEPTIONS_WRAP_END()
+                mergeSorter_->tasks_.close();
             }
         };
     }
 
     void MergeSorter::worker()
     {
-        boost::optional<boost::shared_ptr<Task>> task;
+        // TODO catch exceptions
+        boost::optional<TaskPointer> task;
         while ((task = tasks_.pop()))
         {
-            const boost::shared_ptr<Task> &current = task.get();
+            const TaskPointer &current = task.get();
             const merge_sorter_detail::Visitor visitor(this, current);
             boost::apply_visitor(visitor, current->data);
         }
@@ -157,9 +204,6 @@ namespace yandex{namespace intern{namespace sorters
 
     std::size_t MergeSorter::getThreadNumber()
     {
-        std::size_t threadNumber = boost::thread::hardware_concurrency();
-        if (!threadNumber)
-            threadNumber = 2;
-        return threadNumber;
+        return boost::thread::hardware_concurrency() + 2;
     }
 }}}
