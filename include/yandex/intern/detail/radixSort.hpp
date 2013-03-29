@@ -2,6 +2,8 @@
 
 #include "yandex/intern/types.hpp"
 
+#include <boost/filesystem/path.hpp>
+
 namespace yandex{namespace intern{namespace detail{namespace radix
 {
     constexpr std::size_t blockBitSize = 8;
@@ -19,11 +21,18 @@ namespace yandex{namespace intern{namespace detail{namespace radix
                        const std::size_t blockShift) noexcept __attribute__((nonnull));
 
     /// \return false on out of memory
-    bool sort(const Data *__restrict__ const src,
-              Data *__restrict__ const dst,
-              const std::size_t size) noexcept __attribute__((nonnull));
+    bool sortMemory(const Data *__restrict__ const src,
+                    Data *__restrict__ const dst,
+                    const std::size_t size) noexcept __attribute__((nonnull));
 
-    bool sortSlowMemory(const Data *__restrict__ const src,
-                        Data *__restrict__ const dst,
-                        const std::size_t size) noexcept __attribute__((nonnull));
+    /// \return false on out of memory
+    bool sort(std::vector<Data> &data,
+              const std::size_t beginBlock=0,
+              const std::size_t endBlock=iterations) noexcept;
+
+    /// \note source and destination may be one file
+    void sortFile(const boost::filesystem::path &source,
+                  const boost::filesystem::path &destination,
+                  const std::size_t beginBlock=0,
+                  const std::size_t endBlock=iterations);
 }}}}

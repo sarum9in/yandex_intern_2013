@@ -25,45 +25,6 @@ namespace yandex{namespace intern{namespace sorters
 
     void InMemorySorter::sort()
     {
-        namespace unistd = yandex::contest::system::unistd;
-
-        const unistd::Descriptor src = unistd::open(source(), O_RDONLY);
-        const unistd::Descriptor dst = unistd::open(destination(), O_RDWR | O_CREAT | O_TRUNC);
-
-        const unistd::FileStatus status = unistd::fstat(src.get());
-        if (status.size % sizeof(Data) != 0)
-            BOOST_THROW_EXCEPTION(InvalidFileSizeError() <<
-                                  InvalidFileSizeError::path(source()));
-        const off_t size = status.size / sizeof(Data);
-        if (ftruncate(dst.get(), status.size) < 0)
-            BOOST_THROW_EXCEPTION(yandex::contest::SystemError("ftruncate") << unistd::info::fd(dst.get()));
-
-        // noexcept {{{
-        int ret = -1;
-        bool radixStatus = false;
-        const Data *srcData = nullptr;
-        Data *dstData = nullptr;
-        Data *dstData_ = nullptr;
-        {
-            srcData = reinterpret_cast<const Data *>(::mmap(nullptr, status.size, PROT_READ, MAP_PRIVATE, src.get(), 0));
-            if (srcData == MAP_FAILED)
-                goto out;
-            dstData_ = new (std::nothrow) Data[size];
-            dstData = reinterpret_cast<Data *>(::mmap(nullptr, status.size, PROT_READ | PROT_WRITE, MAP_SHARED, dst.get(), 0));
-            if (dstData == MAP_FAILED)
-                goto out;
-            radixStatus = detail::radix::sortSlowMemory(srcData, dstData_, size);
-            ret = 0;
-        out:
-            if (dstData && dstData != MAP_FAILED)
-                ::munmap(dstData, status.size);
-            if (srcData && srcData != MAP_FAILED)
-                ::munmap(const_cast<Data *>(srcData), status.size);
-        }
-        // noexcept }}}
-        if (ret < 0)
-            BOOST_THROW_EXCEPTION(yandex::contest::SystemError("mmap"));
-        if (!radixStatus)
-            throw std::bad_alloc();
+        detail::radix::sortFile(source(), destination());
     }
 }}}

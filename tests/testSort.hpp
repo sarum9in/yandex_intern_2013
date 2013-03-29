@@ -24,8 +24,8 @@ namespace yandex{namespace intern{namespace test
     template <typename Sort>
     bool testSort(const Sort &sort)
     {
-        constexpr std::size_t size = 10;
-        constexpr std::size_t iterations = 10000;
+        constexpr std::size_t size = 10000;
+        constexpr std::size_t iterations = 10;
         for (std::size_t test = 0; test < iterations; ++test)
         {
             std::vector<Data> original(size);
@@ -51,16 +51,16 @@ namespace yandex{namespace intern{namespace test
     template <typename Sort>
     void benchSort(const Sort &sort, const char *const name)
     {
-        for (std::size_t size = 1024; size <= 16 * 1024 * 1024; size *= 4)
+        for (std::size_t size = 1024; size <= 1ULL * 1024 * 1024; size *= 4)
         {
-            const std::size_t iterations = 128 * 1024 * 1024 / size;
+            const std::size_t iterations = 16ULL * 1024 * 1024 / size;
             std::vector<Data> original(size);
             std::vector<Data> sorted(size);
             std::generate(original.begin(), original.end(), [&](){return rnd(rng);});
             const std::clock_t begin = std::clock();
             for (std::size_t test = 0; test < iterations; ++test)
                 sort(original.data(), sorted.data(), size);
-            const double time = static_cast<double>(std::clock() - begin) / (iterations * CLOCKS_PER_SEC);
+            const double time = static_cast<double>(std::clock() - begin) / (double(iterations) * CLOCKS_PER_SEC);
             BOOST_TEST_MESSAGE(name << " with size = " << size << " (" <<
                                (size * sizeof(Data) / (1024. * 1024)) << " MiB) : " << time <<
                                ", " << time / size << " per item.");

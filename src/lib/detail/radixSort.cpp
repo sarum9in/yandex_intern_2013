@@ -1,13 +1,32 @@
 #include "yandex/intern/detail/radixSort.hpp"
+#include "yandex/intern/detail/FileMemoryMap.hpp"
+#include "yandex/intern/Error.hpp"
+
+#include "yandex/contest/SystemError.hpp"
+#include "yandex/contest/system/unistd/Descriptor.hpp"
+#include "yandex/contest/system/unistd/Operations.hpp"
+
+#include "bunsan/enable_error_info.hpp"
+#include "bunsan/filesystem/fstream.hpp"
 
 #include <boost/assert.hpp>
+#include <boost/filesystem/operations.hpp>
+#include <boost/scope_exit.hpp>
 
+#include <memory>
 #include <new>
 
 #include <cstring>
 
+#include <fcntl.h>
+#include <unistd.h>
+
+#include <sys/mman.h>
+
 namespace yandex{namespace intern{namespace detail{namespace radix
 {
+    namespace unistd = yandex::contest::system::unistd;
+
     void sortIteration(const Data *__restrict__ const src,
                        Data *__restrict__ const dst,
                        const std::size_t size,
@@ -36,9 +55,9 @@ namespace yandex{namespace intern{namespace detail{namespace radix
         }
     }
 
-    bool sort(const Data *__restrict__ const src,
-              Data *__restrict__ const dst,
-              const std::size_t size) noexcept
+    bool sortMemory(const Data *__restrict__ const src,
+                    Data *__restrict__ const dst,
+                    const std::size_t size) noexcept
     {
         Data *const buffer = new (std::nothrow) Data[size];
         if (!buffer)
@@ -57,31 +76,104 @@ namespace yandex{namespace intern{namespace detail{namespace radix
         return true;
     }
 
-    bool sortSlowMemory(const Data *__restrict__ const src,
-                        Data *__restrict__ const dst,
-                        const std::size_t size) noexcept
+    bool sort(std::vector<Data> &data,
+              const std::size_t beginBlock,
+              const std::size_t endBlock) noexcept
     {
-        Data *const buffer1 = new (std::nothrow) Data[size];
-        Data *const buffer2 = new (std::nothrow) Data[size];
-        const bool ok = buffer1 && buffer2;
-        if (ok)
+        const std::size_t size = data.size();
+        const std::unique_ptr<Data []> buffer(new Data[size]);
+        if (buffer)
         {
-            const Data *from = src;
-            Data *to = buffer1;
-            for (std::size_t blockShift = 0; blockShift < dataBitSize; ++blockShift)
+            const Data *from = data.data();
+            Data *to = buffer.get();
+            for (std::size_t blockShift = beginBlock; blockShift < endBlock; ++blockShift)
             {
                 sortIteration(from, to, size, blockShift);
                 from = to;
-                if (blockShift + 1 == dataBitSize)
-                    to = dst;
-                else if (to == buffer2)
-                    to = buffer1;
+                if (to == buffer.get())
+                    to = data.data();
                 else
-                    to = buffer2;
+                    to = buffer.get();
+            }
+            if (from != data.data())
+                memcpy(data.data(), from, size * sizeof(Data));
+        }
+        return static_cast<bool>(buffer);
+    }
+
+    namespace
+    {
+        std::vector<Data> readFromMap(const FileMemoryMap &map)
+        {
+            if (map.size() % sizeof(Data) != 0)
+                BOOST_THROW_EXCEPTION(InvalidFileSizeError());
+            std::vector<Data> data(map.size() / sizeof(Data));
+            memcpy(data.data(), map.data(), map.size());
+            return data;
+        }
+
+        std::vector<Data> readFromFile(const boost::filesystem::path &path)
+        {
+            const FileMemoryMap map(path, O_RDONLY, PROT_READ, MAP_PRIVATE);
+            try
+            {
+                return readFromMap(map);
+            }
+            catch (InvalidFileSizeError &e)
+            {
+                e << InvalidFileSizeError::path(path);
+                throw;
             }
         }
-        delete [] buffer1;
-        delete [] buffer2;
-        return ok;
+
+        void writeToMap(FileMemoryMap &map, const std::vector<Data> &data)
+        {
+            const std::size_t size = data.size() * sizeof(Data);
+            if (map.size() != size)
+                map.truncate(size);
+            map.map(PROT_READ | PROT_WRITE, MAP_SHARED);
+            memcpy(map.data(), data.data(), size);
+        }
+
+        void writeToFile(const boost::filesystem::path &path, const std::vector<Data> &data)
+        {
+            FileMemoryMap map(path, O_RDWR | O_CREAT);
+            writeToMap(map, data);
+        }
+    }
+
+    void sortFile(const boost::filesystem::path &source,
+                  const boost::filesystem::path &destination,
+                  const std::size_t beginBlock,
+                  const std::size_t endBlock)
+    {
+        if (source == destination)
+        {
+            try
+            {
+                FileMemoryMap map(source, O_RDWR);
+                if (map.size() % sizeof(Data) != 0)
+                    BOOST_THROW_EXCEPTION(InvalidFileSizeError());
+                map.map(PROT_READ, MAP_PRIVATE);
+                std::vector<Data> data = readFromMap(map);
+                map.unmap();
+                if (!sort(data, beginBlock, endBlock))
+                    throw std::bad_alloc();
+                map.map(PROT_READ | PROT_WRITE, MAP_SHARED);
+                writeToMap(map, data);
+            }
+            catch (InvalidFileSizeError &e)
+            {
+                e << InvalidFileSizeError::path(source);
+                throw;
+            }
+        }
+        else
+        {
+            std::vector<Data> data = readFromFile(source);
+            if (!sort(data, beginBlock, endBlock))
+                throw std::bad_alloc();
+            writeToFile(destination, data);
+        }
     }
 }}}}
