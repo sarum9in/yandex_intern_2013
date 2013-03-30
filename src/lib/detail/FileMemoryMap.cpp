@@ -4,6 +4,8 @@
 #include "yandex/contest/system/unistd/Descriptor.hpp"
 #include "yandex/contest/system/unistd/Operations.hpp"
 
+#include <cerrno>
+
 #include <unistd.h>
 
 #include <sys/mman.h>
@@ -57,7 +59,7 @@ namespace yandex{namespace intern{namespace detail
         using std::swap;
 
         swap(fd_, map.fd_);
-        swap(data_, map.data_);
+        swap(map_, map.map_);
         swap(size_, map.size_);
     }
 
@@ -68,7 +70,7 @@ namespace yandex{namespace intern{namespace detail
 
     bool FileMemoryMap::isMapped() const noexcept
     {
-        return static_cast<bool>(data_);
+        return static_cast<bool>(map_);
     }
 
     FileMemoryMap::operator bool() const noexcept
@@ -88,10 +90,7 @@ namespace yandex{namespace intern{namespace detail
     void FileMemoryMap::map(const int mapProtection, const int mapFlags)
     {
         BOOST_ASSERT(isOpened());
-        data_ = mmap(nullptr, size(), mapProtection, mapFlags, fd_.get(), 0);
-        if (data_ == MAP_FAILED)
-            BOOST_THROW_EXCEPTION(SystemError("mmap") <<
-                                  unistd::info::fd(fd_.get()));
+        map_.map(size(), mapProtection, mapFlags, fd_.get());
     }
 
     void FileMemoryMap::unmap()
@@ -104,14 +103,8 @@ namespace yandex{namespace intern{namespace detail
 
     void FileMemoryMap::unmap(std::error_code &ec) noexcept
     {
+        map_.unmap(ec);
         ec.clear();
-        if (data_ && data_ != MAP_FAILED)
-        {
-            if (::munmap(data_, size_) < 0)
-                ec.assign(errno, std::system_category());
-            else
-                data_ = nullptr;
-        }
     }
 
     void FileMemoryMap::close()
@@ -132,12 +125,13 @@ namespace yandex{namespace intern{namespace detail
     void *FileMemoryMap::data() const
     {
         BOOST_ASSERT(isMapped());
-        return data_;
+        return map_.data();
     }
 
     std::size_t FileMemoryMap::size() const
     {
         BOOST_ASSERT(isOpened());
+        BOOST_ASSERT(!map_ || map_.size() == size_);
         return size_;
     }
 
@@ -153,6 +147,7 @@ namespace yandex{namespace intern{namespace detail
 
     int FileMemoryMap::fd() const
     {
+        BOOST_ASSERT(fd_);
         return fd_.get();
     }
 
