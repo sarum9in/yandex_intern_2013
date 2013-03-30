@@ -9,7 +9,13 @@ int main(int argc, char *argv[])
     {
         for (int i = 1; i < argc; ++i)
         {
-            std::cout << argv[i] << ": " << (yandex::intern::isSorted(argv[i]) ? "SORTED" : "NOT SORTED") << std::endl;
+            const yandex::intern::NotOptional<std::size_t> isSorted = yandex::intern::isSorted(argv[i]);
+            std::cout << argv[i] << ": ";
+            if (isSorted)
+                std::cout << "SORTED";
+            else
+                std::cout << "NOT SORTED: " << *isSorted;
+            std::cout << std::endl;
         }
     }
     catch (std::exception &e)
