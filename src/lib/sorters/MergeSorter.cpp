@@ -2,11 +2,15 @@
 #include "yandex/intern/Error.hpp"
 #include "yandex/intern/detail/copyFile.hpp"
 
+#include "yandex/contest/system/unistd/Operations.hpp"
+
 #include "bunsan/enable_error_info.hpp"
 #include "bunsan/filesystem/fstream.hpp"
 
 #include <boost/filesystem/operations.hpp>
 #include <boost/variant/static_visitor.hpp>
+
+#include <fcntl.h>
 
 namespace yandex{namespace intern{namespace sorters
 {
@@ -39,6 +43,8 @@ namespace yandex{namespace intern{namespace sorters
 
     namespace merge_sorter_detail
     {
+        namespace unistd = contest::system::unistd;
+
         struct Visitor: boost::static_visitor<void>
         {
             typedef MergeSorter::TaskQueue TaskQueue;
@@ -170,20 +176,15 @@ namespace yandex{namespace intern{namespace sorters
 
             void finish(const Task::CompositeData &composite) const
             {
-                // high disk usage point, but this happens once, so no big optimization possible
-                BUNSAN_EXCEPTIONS_WRAP_BEGIN()
+                const unistd::Descriptor dstFd = unistd::open(mergeSorter_->destination(), O_WRONLY | O_TRUNC | O_CREAT);
+                for (const std::vector<boost::filesystem::path> &list: composite)
                 {
-                    bunsan::filesystem::ofstream fout(mergeSorter_->destination(), std::ios_base::binary);
-                    for (const std::vector<boost::filesystem::path> &list: composite)
+                    for (const boost::filesystem::path &src: list)
                     {
-                        for (const boost::filesystem::path &src: list)
-                        {
-                            bunsan::filesystem::ifstream fin(src, std::ios_base::binary);
-                            fout << fin.rdbuf();
-                        }
+                        detail::appendFile(src, dstFd.get());
+                        boost::filesystem::remove(src);
                     }
                 }
-                BUNSAN_EXCEPTIONS_WRAP_END()
                 mergeSorter_->tasks_.close();
             }
         };
