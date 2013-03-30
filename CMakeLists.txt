@@ -20,6 +20,7 @@ bunsan_add_shared_library(${PROJECT_NAME}
     src/lib/detail/radixSort.cpp
     src/lib/detail/stdSort.cpp
     src/lib/detail/FileMemoryMap.cpp
+    src/lib/detail/copyFile.cpp
 )
 
 bunsan_use(${PROJECT_NAME})
