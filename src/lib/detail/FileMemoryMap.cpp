@@ -164,6 +164,18 @@ namespace yandex{namespace intern{namespace detail
         return fd_.get();
     }
 
+    const MemoryMap &FileMemoryMap::map() const
+    {
+        BOOST_ASSERT(isMapped());
+        return map_;
+    }
+
+    MemoryMap &FileMemoryMap::map()
+    {
+        BOOST_ASSERT(isMapped());
+        return map_;
+    }
+
     void FileMemoryMap::closeNoExcept() noexcept
     {
         std::error_code ec;

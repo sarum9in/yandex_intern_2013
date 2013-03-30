@@ -85,6 +85,12 @@ namespace yandex{namespace intern{namespace detail
         /// \warning If !isOpened() behavior is undefined.
         int fd() const;
 
+        /// \warning If !isMapped() behavior is undefined.
+        const MemoryMap &map() const;
+
+        /// \warning If !isMapped() behavior is undefined.
+        MemoryMap &map();
+
     private:
         void closeNoExcept() noexcept;
 
