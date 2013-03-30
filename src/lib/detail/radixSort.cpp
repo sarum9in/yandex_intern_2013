@@ -105,10 +105,10 @@ namespace yandex{namespace intern{namespace detail{namespace radix
     {
         std::vector<Data> readFromMap(const FileMemoryMap &map)
         {
-            if (map.size() % sizeof(Data) != 0)
+            if (map.mapSize() % sizeof(Data) != 0)
                 BOOST_THROW_EXCEPTION(InvalidFileSizeError());
-            std::vector<Data> data(map.size() / sizeof(Data));
-            memcpy(data.data(), map.data(), map.size());
+            std::vector<Data> data(map.mapSize() / sizeof(Data));
+            memcpy(data.data(), map.data(), map.mapSize());
             return data;
         }
 
@@ -129,16 +129,27 @@ namespace yandex{namespace intern{namespace detail{namespace radix
         void writeToMap(FileMemoryMap &map, const std::vector<Data> &data)
         {
             const std::size_t size = data.size() * sizeof(Data);
-            if (map.size() != size)
-                map.truncate(size);
-            map.map(PROT_READ | PROT_WRITE, MAP_SHARED);
+            if (map.mapSize() != size)
+                BOOST_THROW_EXCEPTION(InvalidFileSizeError());
             memcpy(map.data(), data.data(), size);
         }
 
         void writeToFile(const boost::filesystem::path &path, const std::vector<Data> &data)
         {
+            const std::size_t size = data.size() * sizeof(Data);
             FileMemoryMap map(path, O_RDWR | O_CREAT);
-            writeToMap(map, data);
+            if (map.fileSize() != size)
+                map.truncate(size);
+            map.mapFull(PROT_READ | PROT_WRITE, MAP_SHARED);
+            try
+            {
+                writeToMap(map, data);
+            }
+            catch (InvalidFileSizeError &e)
+            {
+                e << InvalidFileSizeError::path(path);
+                throw;
+            }
         }
     }
 
@@ -152,14 +163,14 @@ namespace yandex{namespace intern{namespace detail{namespace radix
             try
             {
                 FileMemoryMap map(source, O_RDWR);
-                if (map.size() % sizeof(Data) != 0)
+                if (map.fileSize() % sizeof(Data) != 0)
                     BOOST_THROW_EXCEPTION(InvalidFileSizeError());
-                map.map(PROT_READ, MAP_PRIVATE);
+                map.mapFull(PROT_READ, MAP_PRIVATE);
                 std::vector<Data> data = readFromMap(map);
                 map.unmap();
                 if (!sort(data, beginBlock, endBlock))
                     throw std::bad_alloc();
-                map.map(PROT_READ | PROT_WRITE, MAP_SHARED);
+                map.mapFull(PROT_READ | PROT_WRITE, MAP_SHARED);
                 writeToMap(map, data);
             }
             catch (InvalidFileSizeError &e)
