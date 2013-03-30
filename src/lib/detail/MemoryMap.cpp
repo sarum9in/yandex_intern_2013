@@ -57,9 +57,14 @@ namespace yandex{namespace intern{namespace detail
     void MemoryMap::map(void *const addr, const std::size_t size, const int mapProtection,
                         const int mapFlags, const int fd, const off_t off)
     {
+        static const long pageSize = sysconf(_SC_PAGESIZE);
         BOOST_ASSERT(!*this);
-        size_ = size;
-        data_ = mmap(addr, size_, mapProtection, mapFlags, fd, off);
+        BOOST_ASSERT(0 <= off);
+        const off_t pageOff = off / pageSize;
+        const off_t realOff = pageOff * pageSize;
+        off_ = off - realOff;
+        size_ = size + off_;
+        data_ = mmap(addr, size_, mapProtection, mapFlags, fd, realOff);
         if (data_ == MAP_FAILED)
             BOOST_THROW_EXCEPTION(SystemError("mmap") <<
                                   unistd::info::fd(fd));
@@ -102,13 +107,13 @@ namespace yandex{namespace intern{namespace detail
     std::size_t MemoryMap::size() const
     {
         BOOST_ASSERT(*this);
-        return size_;
+        return size_ - off_;
     }
 
     void *MemoryMap::data() const
     {
         BOOST_ASSERT(*this);
-        return data_;
+        return reinterpret_cast<char *>(data_) + off_;
     }
 
     void MemoryMap::unmapNoExcept() noexcept

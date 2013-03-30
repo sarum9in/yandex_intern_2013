@@ -12,7 +12,7 @@ namespace yandex{namespace intern{namespace detail
     {
     public:
         MemoryMap();
-        
+
         MemoryMap(void *const addr, const std::size_t size, const int mapProtection,
                   const int mapFlags, const int fd, const off_t off=0);
 
@@ -58,6 +58,7 @@ namespace yandex{namespace intern{namespace detail
     private:
         void *data_ = nullptr;
         std::size_t size_ = 0;
+        off_t off_ = 0;
     };
 
     inline void swap(MemoryMap &a, MemoryMap &b) noexcept
