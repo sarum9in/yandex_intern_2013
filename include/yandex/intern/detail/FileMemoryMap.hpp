@@ -1,5 +1,7 @@
 #pragma once
 
+#include "yandex/intern/detail/MemoryMap.hpp"
+
 #include "yandex/contest/system/unistd/Descriptor.hpp"
 
 #include <boost/filesystem/path.hpp>
@@ -83,7 +85,7 @@ namespace yandex{namespace intern{namespace detail
 
     private:
         yandex::contest::system::unistd::Descriptor fd_;
-        void *data_ = nullptr;
+        MemoryMap map_;
         std::size_t size_ = 0;
     };
 
