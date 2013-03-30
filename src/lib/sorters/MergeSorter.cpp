@@ -1,7 +1,6 @@
-#include "bunsan/config.hpp"
-
 #include "yandex/intern/sorters/MergeSorter.hpp"
 #include "yandex/intern/Error.hpp"
+#include "yandex/intern/detail/copyFile.hpp"
 
 #include "bunsan/enable_error_info.hpp"
 #include "bunsan/filesystem/fstream.hpp"
@@ -165,7 +164,7 @@ namespace yandex{namespace intern{namespace sorters
             void finish(const Task::SingleData &single) const
             {
                 // we must keep original file
-                boost::filesystem::copy_file(single, mergeSorter_->destination());
+                detail::copyFile(single, mergeSorter_->destination());
                 mergeSorter_->tasks_.close();
             }
 
