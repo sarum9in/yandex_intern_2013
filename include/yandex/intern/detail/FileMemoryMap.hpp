@@ -53,8 +53,10 @@ namespace yandex{namespace intern{namespace detail
          */
         void open(const boost::filesystem::path &path, const int openFlags, const int mode=0666);
 
-        /// Establish mapping.
-        void map(const int mapProtection, const int mapFlags);
+        void mapPart(const std::size_t size, const int mapProtection,
+                     const int mapFlags, const off_t off=0);
+
+        void mapFull(const int mapProtection, const int mapFlags, const off_t off=0);
 
         /// Remove mapping (if exists).
         void unmap();
@@ -64,11 +66,14 @@ namespace yandex{namespace intern{namespace detail
         void close();
         void close(std::error_code &ec) noexcept;
 
+        /// \warning If !isOpened() behavior is undefined.
+        std::size_t fileSize() const;
+
         /// \warning If !isMapped() behavior is undefined.
         void *data() const;
 
-        /// \warning If !isOpened() behavior is undefined.
-        std::size_t size() const;
+        /// \warning If !isMapped() behavior is undefined.
+        std::size_t mapSize() const;
 
         /*!
          * \brief Truncate underlying file.
