@@ -22,6 +22,7 @@ bunsan_add_shared_library(${PROJECT_NAME}
     src/lib/detail/MemoryMap.cpp
     src/lib/detail/FileMemoryMap.cpp
     src/lib/detail/copyFile.cpp
+    src/lib/detail/io.cpp
 )
 
 bunsan_use(${PROJECT_NAME})
