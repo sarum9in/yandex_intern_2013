@@ -9,7 +9,7 @@
 
 namespace yandex{namespace intern
 {
-    bool isSorted(const boost::filesystem::path &path)
+    NotOptional<std::size_t> isSorted(const boost::filesystem::path &path)
     {
         BUNSAN_EXCEPTIONS_WRAP_BEGIN()
         {
@@ -19,18 +19,20 @@ namespace yandex{namespace intern
             if (fin.gcount() != sizeof(previousData))
                 BOOST_THROW_EXCEPTION(InvalidFileSizeError());
             Data data;
+            std::size_t pos = 0;
             while (fin.read(reinterpret_cast<char *>(&data), sizeof(data)))
             {
                 if (fin.gcount() != sizeof(data))
                     BOOST_THROW_EXCEPTION(InvalidFileSizeError());
                 if (previousData > data)
-                    return false;
+                    return pos;
                 previousData = data;
+                pos += sizeof(data);
             }
             if (fin.gcount() != 0 && fin.gcount() != sizeof(data))
                 BOOST_THROW_EXCEPTION(InvalidFileSizeError());
         }
         BUNSAN_EXCEPTIONS_WRAP_END_ERROR_INFO(Error::path(path))
-        return true;
+        return NotOptional<std::size_t>();
     }
 }}
