@@ -33,7 +33,7 @@ namespace yandex{namespace intern{namespace detail
         const boost::filesystem::path &path, const int openFlags, const int mode,
         const int mapProtection, const int mapFlags): FileMemoryMap(path, openFlags, mode)
     {
-        map(mapProtection, mapFlags);
+        mapFull(mapProtection, mapFlags);
     }
 
     FileMemoryMap::FileMemoryMap(FileMemoryMap &&map) noexcept
@@ -87,10 +87,18 @@ namespace yandex{namespace intern{namespace detail
         size_ = unistd::fstat(fd_.get()).size;
     }
 
-    void FileMemoryMap::map(const int mapProtection, const int mapFlags)
+    void FileMemoryMap::mapPart(const std::size_t size, const int mapProtection,
+                                const int mapFlags, const off_t off)
     {
         BOOST_ASSERT(isOpened());
-        map_.map(size(), mapProtection, mapFlags, fd_.get());
+        BOOST_ASSERT(off + size <= fileSize());
+        map_.map(size, mapProtection, mapFlags, fd_.get(), off);
+    }
+
+    void FileMemoryMap::mapFull(const int mapProtection, const int mapFlags, const off_t off)
+    {
+        BOOST_ASSERT(0 <= off && static_cast<std::size_t>(off) <= fileSize());
+        mapPart(fileSize() - off, mapProtection, mapFlags, off);
     }
 
     void FileMemoryMap::unmap()
@@ -122,17 +130,22 @@ namespace yandex{namespace intern{namespace detail
         fd_.close(ec);
     }
 
+    std::size_t FileMemoryMap::fileSize() const
+    {
+        BOOST_ASSERT(isOpened());
+        return size_;
+    }
+
     void *FileMemoryMap::data() const
     {
         BOOST_ASSERT(isMapped());
         return map_.data();
     }
 
-    std::size_t FileMemoryMap::size() const
+    std::size_t FileMemoryMap::mapSize() const
     {
-        BOOST_ASSERT(isOpened());
-        BOOST_ASSERT(!map_ || map_.size() == size_);
-        return size_;
+        BOOST_ASSERT(isMapped());
+        return map_.size();
     }
 
     void FileMemoryMap::truncate(const std::size_t size)
