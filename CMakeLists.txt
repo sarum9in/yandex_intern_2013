@@ -14,6 +14,7 @@ bunsan_add_shared_library(${PROJECT_NAME}
     src/lib/generate.cpp
     src/lib/isSorted.cpp
     src/lib/Sorter.cpp
+    src/lib/sorters/BlockSorter.cpp
     src/lib/sorters/InMemorySorter.cpp
     src/lib/sorters/MergeSorter.cpp
 
