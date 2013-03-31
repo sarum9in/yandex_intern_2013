@@ -106,6 +106,8 @@ namespace yandex{namespace intern{namespace sorters
                 if (fin.gcount())
                     BOOST_THROW_EXCEPTION(InvalidFileSizeError() <<
                                           InvalidFileSizeError::path(source()));
+                for (AutoOpenFile<HalfData> &bucket: buckets)
+                    bucket.flush();
             }
 
             // count
