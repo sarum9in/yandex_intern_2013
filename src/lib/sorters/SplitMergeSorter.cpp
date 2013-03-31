@@ -1,6 +1,7 @@
 #include "yandex/intern/sorters/SplitMergeSorter.hpp"
 #include "yandex/intern/Error.hpp"
 #include "yandex/intern/types.hpp"
+#include "yandex/intern/detail/FileMemoryMap.hpp"
 #include "yandex/intern/detail/io.hpp"
 #include "yandex/intern/detail/radixSort.hpp"
 
@@ -23,12 +24,15 @@
 
 #include <fcntl.h>
 
+#include <sys/mman.h>
+
 namespace yandex{namespace intern{namespace sorters
 {
     namespace unistd = contest::system::unistd;
 
     constexpr std::size_t memoryLimitBytes = 256 * 1024 * 1024;
     constexpr std::size_t fileSizeLimitBytes = memoryLimitBytes / 4;
+    static_assert(fileSizeLimitBytes % sizeof(Data) == 0, "");
     constexpr std::size_t mergeNumberLimit = memoryLimitBytes / (4 * BUFSIZ * sizeof(Data));
 
     SplitMergeSorter::SplitMergeSorter(const boost::filesystem::path& src, const boost::filesystem::path& dst):
@@ -52,35 +56,50 @@ namespace yandex{namespace intern{namespace sorters
     {
         for (std::size_t i = 0; i < 2; ++i)
             sortSmallGroup_.create_thread(boost::bind(&SplitMergeSorter::sortSmall, this));
+        dumpSmallGroup_.create_thread(boost::bind(&SplitMergeSorter::dumpSmall, this));
         mergeGroup_.create_thread(boost::bind(&SplitMergeSorter::merge, this)); // single thread
         split();
         smallSortTasks_.close();
         sortSmallGroup_.join_all();
+        dumpSmallTasks_.close();
+        dumpSmallGroup_.join_all();
         mergeTasks_.close();
         mergeGroup_.join_all();
     }
 
     void SplitMergeSorter::split()
     {
-        unistd::Descriptor srcFd = unistd::open(source(), O_RDONLY);
-        bool eof = false;
-        while (!eof)
+        detail::FileMemoryMap map(source(), O_RDONLY);
+        for (std::size_t offset = 0; offset < map.fileSize(); offset += fileSizeLimitBytes)
         {
-            const boost::filesystem::path path = root_ / boost::filesystem::unique_path();
-            SLOG(__func__ << '(' << path << ')');
-            unistd::Descriptor dstFd = unistd::open(path, O_WRONLY | O_CREAT | O_TRUNC);
-            std::size_t size = 0;
-            while (!eof && size < fileSizeLimitBytes)
-            {
-                const std::size_t rsize = unistd::sendfile(dstFd.get(), srcFd.get());
-                if (!rsize)
-                    eof = true;
-                size += rsize;
-            }
-            dstFd.close();
-            smallSortTasks_.push(path);
+            SLOG(__func__ << '(' << ')');
+            const std::size_t size = std::min(fileSizeLimitBytes, map.fileSize() - offset);
+            map.mapPart(size, PROT_READ, MAP_PRIVATE, offset);
+            smallSortTasks_.push(detail::io::readFromMap(map.map()));
+            map.unmap();
         }
-        srcFd.close();
+    }
+
+    void SplitMergeSorter::sortSmall()
+    {
+        std::vector<Data> task;
+        while (smallSortTasks_.pop(task))
+        {
+            SLOG(__func__ << '(' << ')');
+            detail::radix::sort(task);
+            dumpSmallTasks_.push(std::move(task));
+        }
+    }
+
+    void SplitMergeSorter::dumpSmall()
+    {
+        std::vector<Data> task;
+        while (dumpSmallTasks_.pop(task))
+        {
+            boost::filesystem::path path = root_ / boost::filesystem::unique_path();
+            detail::io::writeToFile(path, task);
+            mergeTasks_.push(std::move(path));
+        }
     }
 
     void SplitMergeSorter::merge()
@@ -130,35 +149,6 @@ namespace yandex{namespace intern{namespace sorters
         }
         BOOST_ASSERT(from->size() == 1);
         boost::filesystem::rename(from->front(), destination());
-    }
-
-    void SplitMergeSorter::sortSmall()
-    {
-        boost::optional<boost::filesystem::path> task;
-        while ((task = smallSortTasks_.pop()))
-        {
-            SLOG(__func__ << '(' << task.get() << ')');
-            try
-            {
-                FileMemoryMap map(task.get(), O_RDWR);
-                if (map.fileSize() % sizeof(Data) != 0)
-                    BOOST_THROW_EXCEPTION(InvalidFileSizeError());
-                map.mapFull(PROT_READ, MAP_PRIVATE);
-                std::vector<Data> data = detail::io::readFromMap(map.map());
-                map.unmap();
-                if (!detail::radix::sort(data))
-                    throw std::bad_alloc();
-                map.mapFull(PROT_READ | PROT_WRITE, MAP_SHARED);
-                detail::io::writeToMap(map.map(), data);
-            }
-            catch (InvalidFileSizeError &e)
-            {
-                e << InvalidFileSizeError::path(source);
-                throw;
-            }
-            detail::radix::sortFile(task.get(), task.get());
-            mergeTasks_.push(task.get());
-        }
     }
 
     void SplitMergeSorter::mergeFiles(const std::vector<boost::filesystem::path> &from, const boost::filesystem::path &to)
