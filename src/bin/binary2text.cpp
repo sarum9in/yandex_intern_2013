@@ -28,8 +28,8 @@ namespace yandex{namespace intern
             Data data;
             while (fin.read(reinterpret_cast<char *>(&data), sizeof(data)))
                 fout << data << "\n";
-            if (fin.gcount() != 0 && fin.gcount() != sizeof(data))
-                ok = false;
+            BOOST_ASSERT(fin.eof());
+            ok = !fin.gcount();
         }
         BUNSAN_EXCEPTIONS_WRAP_END()
         return ok;

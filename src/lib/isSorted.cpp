@@ -22,14 +22,13 @@ namespace yandex{namespace intern
             std::size_t pos = 0;
             while (fin.read(reinterpret_cast<char *>(&data), sizeof(data)))
             {
-                if (fin.gcount() != sizeof(data))
-                    BOOST_THROW_EXCEPTION(InvalidFileSizeError());
                 if (previousData > data)
                     return pos;
                 previousData = data;
                 pos += sizeof(data);
             }
-            if (fin.gcount() != 0 && fin.gcount() != sizeof(data))
+            BOOST_ASSERT(fin.eof());
+            if (fin.gcount())
                 BOOST_THROW_EXCEPTION(InvalidFileSizeError());
         }
         BUNSAN_EXCEPTIONS_WRAP_END_ERROR_INFO(Error::path(path))
