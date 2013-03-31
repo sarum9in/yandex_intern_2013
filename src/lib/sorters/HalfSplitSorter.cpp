@@ -19,6 +19,13 @@
 
 namespace yandex{namespace intern{namespace sorters
 {
+    constexpr std::size_t memoryLimitBytes = 256 * 1024 * 1024;
+    constexpr std::size_t dataBitSize = sizeof(Data) * 8;
+    constexpr std::size_t blockBitSize = dataBitSize / 2;
+    constexpr std::size_t fullBlock = (static_cast<std::size_t>(1) << blockBitSize) - 1;
+    constexpr std::size_t bucketsSize = static_cast<std::size_t>(1) << blockBitSize;
+    constexpr Data mask = static_cast<Data>(fullBlock);
+
     HalfSplitSorter::HalfSplitSorter(const boost::filesystem::path& src, const boost::filesystem::path& dst):
         Sorter(src, dst),
         root_(dst.parent_path() / boost::filesystem::unique_path())
@@ -71,7 +78,7 @@ namespace yandex{namespace intern{namespace sorters
         private:
             boost::optional<boost::filesystem::path> path_;
             std::size_t size_ = 0;
-            std::array<T, BUFSIZ / sizeof(T)> data_;
+            std::array<T, memoryLimitBytes / (sizeof(T) * bucketsSize * 2) > data_;
         };
     }
 
@@ -79,12 +86,6 @@ namespace yandex{namespace intern{namespace sorters
     {
         BUNSAN_EXCEPTIONS_WRAP_BEGIN()
         {
-            constexpr std::size_t dataBitSize = sizeof(Data) * 8;
-            constexpr std::size_t blockBitSize = dataBitSize / 2;
-            constexpr std::size_t fullBlock = (static_cast<std::size_t>(1) << blockBitSize) - 1;
-            constexpr std::size_t bucketsSize = static_cast<std::size_t>(1) << blockBitSize;
-            constexpr Data mask = static_cast<Data>(fullBlock);
-
             // split
             {
                 bunsan::filesystem::ifstream fin(source(), std::ios_base::binary);
