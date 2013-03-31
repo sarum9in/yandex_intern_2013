@@ -57,17 +57,24 @@ namespace yandex{namespace intern{namespace detail
     void MemoryMap::map(void *const addr, const std::size_t size, const int mapProtection,
                         const int mapFlags, const int fd, const off_t off)
     {
-        static const long pageSize = sysconf(_SC_PAGESIZE);
-        BOOST_ASSERT(!*this);
-        BOOST_ASSERT(0 <= off);
-        const off_t pageOff = off / pageSize;
-        const off_t realOff = pageOff * pageSize;
-        off_ = off - realOff;
-        size_ = size + off_;
-        data_ = mmap(addr, size_, mapProtection, mapFlags, fd, realOff);
-        if (data_ == MAP_FAILED)
-            BOOST_THROW_EXCEPTION(SystemError("mmap") <<
-                                  unistd::info::fd(fd));
+        if (size)
+        {
+            static const long pageSize = sysconf(_SC_PAGESIZE);
+            BOOST_ASSERT(!*this);
+            BOOST_ASSERT(0 <= off);
+            const off_t pageOff = off / pageSize;
+            const off_t realOff = pageOff * pageSize;
+            off_ = off - realOff;
+            size_ = size + off_;
+            data_ = mmap(addr, size_, mapProtection, mapFlags, fd, realOff);
+            if (data_ == MAP_FAILED)
+                BOOST_THROW_EXCEPTION(SystemError("mmap") <<
+                                      unistd::info::fd(fd));
+        }
+        else
+        {
+            data_ = MAP_FAILED;
+        }
     }
 
     void MemoryMap::map(const std::size_t size, const int mapProtection,
