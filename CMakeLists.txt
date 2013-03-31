@@ -18,6 +18,7 @@ bunsan_add_shared_library(${PROJECT_NAME}
     src/lib/sorters/HalfSplitSorter.cpp
     src/lib/sorters/InMemorySorter.cpp
     src/lib/sorters/MergeSorter.cpp
+    src/lib/sorters/SplitMergeSorter.cpp
 
     src/lib/detail/radixSort.cpp
     src/lib/detail/stdSort.cpp
