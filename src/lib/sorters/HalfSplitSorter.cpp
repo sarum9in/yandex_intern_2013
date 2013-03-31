@@ -69,14 +69,17 @@ namespace yandex{namespace intern{namespace sorters
                 {
                     if (size_)
                     {
-                        BUNSAN_EXCEPTIONS_WRAP_BEGIN()
+                        unistd::Descriptor out = unistd::open(path_.get(), O_WRONLY | O_CREAT | O_APPEND);
+                        char *data = reinterpret_cast<char *>(data_.data());
+                        std::size_t off = 0;
+                        while (off < size_ * sizeof(T))
                         {
-                            bunsan::filesystem::ofstream fout(path_.get(), std::ios_base::binary);
-                            fout.write(reinterpret_cast<const char *>(data_.data()), size_ * sizeof(T));
-                            fout.close();
-                            size_ = 0;
+                            const ssize_t written = write(out.get(), data + off, size_ * sizeof(T) - off);
+                            if (written < 0)
+                                BOOST_THROW_EXCEPTION(contest::SystemError("write") << unistd::info::fd(out.get()) << unistd::info::path(path_.get()));
+                            off += written;
                         }
-                        BUNSAN_EXCEPTIONS_WRAP_END()
+                        size_ = 0;
                     }
                 }
             }
