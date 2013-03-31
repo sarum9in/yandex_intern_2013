@@ -43,9 +43,10 @@ namespace yandex{namespace intern{namespace sorters
                 const std::size_t value = (data >> bitShift) & detail::radix::mask;
                 ++bucketSize[value];
             }
-            if (!fin.eof() && fin.fail())
+            if (fin.gcount())
                 BOOST_THROW_EXCEPTION(InvalidFileSizeError() <<
                                       InvalidFileSizeError::path(source()));
+            BOOST_ASSERT(fin.eof());
             fin.clear();
             fin.seekg(0);
             // count shifts
@@ -75,15 +76,15 @@ namespace yandex{namespace intern{namespace sorters
                     dumpBuffer(value);
                 buffers[value][bufferSize[value]++] = data;
             }
+            BOOST_ASSERT(fin.eof());
+            fin.close();
+            fout.close();
             for (std::size_t value = 0; value < detail::radix::bucketsSize; ++value)
             {
                 if (bufferSize[value])
                     dumpBuffer(value);
                 BOOST_ASSERT(shift[value] == offset[value] + bucketSize[value]);
             }
-            BOOST_ASSERT(fin.eof() || !fin.fail());
-            fin.close();
-            fout.close();
             // TODO sort buckets
             detail::FileMemoryMap map(destination(), O_RDWR);
             for (std::size_t i = 0; i < detail::radix::bucketsSize; ++i)

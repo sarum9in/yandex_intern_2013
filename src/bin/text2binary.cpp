@@ -28,8 +28,7 @@ namespace yandex{namespace intern
             Data data;
             while (fin >> data)
                 fout.write(reinterpret_cast<const char *>(&data), sizeof(data));
-            if (!fin.eof() && fin.fail())
-                ok = false;
+            ok = !fin.fail() || fin.eof();
         }
         BUNSAN_EXCEPTIONS_WRAP_END()
         return ok;
