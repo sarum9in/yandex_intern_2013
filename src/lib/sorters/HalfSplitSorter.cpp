@@ -64,14 +64,17 @@ namespace yandex{namespace intern{namespace sorters
             {
                 if (path_)
                 {
-                    BUNSAN_EXCEPTIONS_WRAP_BEGIN()
+                    if (size_)
                     {
-                        bunsan::filesystem::ofstream fout(path_.get(), std::ios_base::binary);
-                        fout.write(reinterpret_cast<const char *>(data_.data()), size_ * sizeof(T));
-                        fout.close();
-                        size_ = 0;
+                        BUNSAN_EXCEPTIONS_WRAP_BEGIN()
+                        {
+                            bunsan::filesystem::ofstream fout(path_.get(), std::ios_base::binary);
+                            fout.write(reinterpret_cast<const char *>(data_.data()), size_ * sizeof(T));
+                            fout.close();
+                            size_ = 0;
+                        }
+                        BUNSAN_EXCEPTIONS_WRAP_END()
                     }
-                    BUNSAN_EXCEPTIONS_WRAP_END()
                 }
             }
 
@@ -111,21 +114,24 @@ namespace yandex{namespace intern{namespace sorters
                 for (std::size_t i = 0; i < bucketsSize; ++i)
                 {
                     const boost::filesystem::path src = bucketPath(i);
-                    std::vector<std::uint64_t> count(bucketsSize);
-                    bunsan::filesystem::ifstream fin(src, std::ios_base::binary);
-                    HalfData halfData;
-                    while (fin.read(reinterpret_cast<char *>(&halfData), sizeof(halfData)))
-                        ++count[halfData];
-                    BOOST_ASSERT(fin.eof());
-                    BOOST_ASSERT(!fin.gcount());
-                    fin.close();
-                    for (std::size_t j = 0; j < bucketsSize; ++j)
+                    if (boost::filesystem::exists(src))
                     {
-                        const Data number = (i << blockBitSize) | j;
-                        for (std::size_t k = 0; k < count[j]; ++k)
-                            fout.write(reinterpret_cast<const char *>(&number), sizeof(number));
+                        std::vector<std::uint64_t> count(bucketsSize);
+                        bunsan::filesystem::ifstream fin(src, std::ios_base::binary);
+                        HalfData halfData;
+                        while (fin.read(reinterpret_cast<char *>(&halfData), sizeof(halfData)))
+                            ++count[halfData];
+                        BOOST_ASSERT(fin.eof());
+                        BOOST_ASSERT(!fin.gcount());
+                        fin.close();
+                        for (std::size_t j = 0; j < bucketsSize; ++j)
+                        {
+                            const Data number = (i << blockBitSize) | j;
+                            for (std::size_t k = 0; k < count[j]; ++k)
+                                fout.write(reinterpret_cast<const char *>(&number), sizeof(number));
+                        }
+                        boost::filesystem::remove(src);
                     }
-                    boost::filesystem::remove(src);
                 }
                 fout.close();
             }
