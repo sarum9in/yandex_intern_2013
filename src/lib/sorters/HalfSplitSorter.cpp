@@ -2,6 +2,7 @@
 #include "yandex/intern/Error.hpp"
 #include "yandex/intern/types.hpp"
 
+#include "yandex/contest/SystemError.hpp"
 #include "yandex/contest/system/unistd/Operations.hpp"
 
 #include "bunsan/enable_error_info.hpp"
@@ -19,6 +20,8 @@
 
 namespace yandex{namespace intern{namespace sorters
 {
+    namespace unistd = contest::system::unistd;
+
     constexpr std::size_t memoryLimitBytes = 256 * 1024 * 1024;
     constexpr std::size_t dataBitSize = sizeof(Data) * 8;
     constexpr std::size_t blockBitSize = dataBitSize / 2;
@@ -116,21 +119,30 @@ namespace yandex{namespace intern{namespace sorters
                 for (std::size_t i = 0; i < bucketsSize; ++i)
                 {
                     const boost::filesystem::path src = bucketPath(i);
-                    if (boost::filesystem::exists(src))
+                    const boost::optional<unistd::FileStatus> status = unistd::statOptional(src);
+                    if (status)
                     {
-                        std::vector<std::uint64_t> count(bucketsSize);
-                        bunsan::filesystem::ifstream fin(src, std::ios_base::binary);
-                        HalfData halfData;
-                        while (fin.read(reinterpret_cast<char *>(&halfData), sizeof(halfData)))
-                            ++count[halfData];
-                        BOOST_ASSERT(fin.eof());
-                        BOOST_ASSERT(!fin.gcount());
-                        fin.close();
-                        for (std::size_t j = 0; j < bucketsSize; ++j)
+                        BOOST_ASSERT(status->size % sizeof(HalfData) == 0);
+                        //if (status->size / sizeof(HalfData) > bucketsSize)
                         {
-                            const Data number = (i << blockBitSize) | j;
-                            for (std::size_t k = 0; k < count[j]; ++k)
-                                fout.write(reinterpret_cast<const char *>(&number), sizeof(number));
+                            std::vector<std::uint64_t> count(bucketsSize);
+                            bunsan::filesystem::ifstream fin(src, std::ios_base::binary);
+                            HalfData halfData;
+                            while (fin.read(reinterpret_cast<char *>(&halfData), sizeof(halfData)))
+                                ++count[halfData];
+                            BOOST_ASSERT(fin.eof());
+                            BOOST_ASSERT(!fin.gcount());
+                            fin.close();
+                            for (std::size_t j = 0; j < bucketsSize; ++j)
+                            {
+                                const Data number = (i << blockBitSize) | j;
+                                for (std::size_t k = 0; k < count[j]; ++k)
+                                    fout.write(reinterpret_cast<const char *>(&number), sizeof(number));
+                            }
+                        }
+                        //else
+                        {
+                            // TODO radix
                         }
                         boost::filesystem::remove(src);
                     }
