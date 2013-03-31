@@ -3,6 +3,8 @@
 
 #include "yandex/intern/detail/Queue.hpp"
 
+#include <utility>
+
 namespace ya = yandex::intern;
 namespace yad = ya::detail;
 
@@ -41,6 +43,29 @@ BOOST_AUTO_TEST_CASE(exit_not_empty_closed)
     q.push(1);
     q.close();
     // TODO should it be checked?
+}
+
+BOOST_AUTO_TEST_CASE(move_noncopyable)
+{
+    yad::Queue<std::unique_ptr<int>> q;
+    q.push(std::unique_ptr<int>(new int(3)));
+    std::unique_ptr<int> n;
+    BOOST_REQUIRE(q.pop(n));
+    BOOST_CHECK(*n == 3);
+}
+
+BOOST_AUTO_TEST_CASE(move_copyable)
+{
+    yad::Queue<std::vector<int>> q;
+    q.push(std::vector<int>{1, 2, 3});
+    std::vector<int> g = {2, 3, 4};
+    q.push(g);
+    BOOST_CHECK_EQUAL(g.size(), 3);
+    q.push(std::move(g));
+    BOOST_CHECK_EQUAL(g.size(), 0);
+    BOOST_CHECK_EQUAL(q.pop().get()[0], 1);
+    BOOST_CHECK_EQUAL(q.pop().get()[0], 2);
+    BOOST_CHECK_EQUAL(q.pop().get()[0], 2);
 }
 
 BOOST_AUTO_TEST_SUITE_END() // Queue

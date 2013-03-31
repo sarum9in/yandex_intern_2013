@@ -10,6 +10,7 @@
 #include <boost/thread/condition_variable.hpp>
 
 #include <queue>
+#include <utility>
 
 namespace yandex{namespace intern{namespace detail
 {
@@ -19,28 +20,37 @@ namespace yandex{namespace intern{namespace detail
     public:
         Queue()=default;
 
-        boost::optional<T> pop()
+        bool pop(T &obj)
         {
             boost::unique_lock<boost::mutex> lk(lock_);
             hasData_.wait(lk, [this]() -> bool { return closed_ || !data_.empty(); });
-            boost::optional<T> obj;
             if (data_.empty())
             {
                 BOOST_ASSERT(closed_);
+                return false;
             }
             else
             {
-                obj = data_.front();
+                obj = std::move(data_.front());
                 data_.pop();
+                return true;
             }
+        }
+
+        boost::optional<T> pop()
+        {
+            boost::optional<T> obj = T();
+            if (!pop(obj.get()))
+                obj.reset();
             return obj;
         }
 
-        void push(const T &obj)
+        template <typename P>
+        void push(P &&obj)
         {
             const boost::lock_guard<boost::mutex> lk(lock_);
             BOOST_ASSERT(!closed_);
-            data_.push(obj);
+            data_.push(std::forward<P>(obj));
             hasData_.notify_one();
         }
 
