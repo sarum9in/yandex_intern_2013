@@ -20,6 +20,35 @@ namespace yandex{namespace intern{namespace detail
     public:
         Queue()=default;
 
+        bool popAll(std::vector<T> &objects, const std::size_t minSize=1)
+        {
+            boost::unique_lock<boost::mutex> lk(lock_);
+            hasData_.wait(lk, [this, minSize]() -> bool { return closed_ || data_.size() >= minSize; });
+            if (data_.size() < minSize)
+            {
+                BOOST_ASSERT(closed_);
+                return false;
+            }
+            else
+            {
+                objects.clear();
+                while (!data_.empty())
+                {
+                    objects.push_back(std::move(data_.front()));
+                    data_.pop();
+                }
+                return true;
+            }
+        }
+
+        boost::optional<std::vector<T>> popAll(const std::size_t minSize=1)
+        {
+            boost::optional<std::vector<T>> objects = std::vector<T>();
+            if (!popAll(objects.get(), minSize))
+                objects.reset();
+            return objects;
+        }
+
         bool pop(T &obj)
         {
             boost::unique_lock<boost::mutex> lk(lock_);
