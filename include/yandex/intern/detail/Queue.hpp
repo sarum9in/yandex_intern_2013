@@ -9,6 +9,7 @@
 #include <boost/thread/mutex.hpp>
 #include <boost/thread/condition_variable.hpp>
 
+#include <limits>
 #include <queue>
 #include <utility>
 
@@ -19,6 +20,7 @@ namespace yandex{namespace intern{namespace detail
     {
     public:
         Queue()=default;
+        explicit Queue(const std::size_t maxSize): maxSize_(maxSize) {}
 
         bool popAll(std::vector<T> &objects, const std::size_t minSize=1)
         {
@@ -37,6 +39,7 @@ namespace yandex{namespace intern{namespace detail
                     objects.push_back(std::move(data_.front()));
                     data_.pop();
                 }
+                hasSpace_.notify_all();
                 return true;
             }
         }
@@ -62,6 +65,7 @@ namespace yandex{namespace intern{namespace detail
             {
                 obj = std::move(data_.front());
                 data_.pop();
+                hasSpace_.notify_all();
                 return true;
             }
         }
@@ -75,12 +79,21 @@ namespace yandex{namespace intern{namespace detail
         }
 
         template <typename P>
-        void push(P &&obj)
+        bool push(P &&obj)
         {
-            const boost::lock_guard<boost::mutex> lk(lock_);
-            BOOST_ASSERT(!closed_);
-            data_.push(std::forward<P>(obj));
-            hasData_.notify_one();
+            boost::unique_lock<boost::mutex> lk(lock_);
+            hasSpace_.wait(lk, [this]() -> bool { return closed_ || data_.size() < maxSize_; });
+            if (data_.size() < maxSize_)
+            {
+                data_.push(std::forward<P>(obj));
+                hasData_.notify_one();
+                return true;
+            }
+            else
+            {
+                BOOST_ASSERT(closed_);
+                return false;
+            }
         }
 
         /// Do not make threads wait for impossible push().
@@ -89,13 +102,16 @@ namespace yandex{namespace intern{namespace detail
             const boost::lock_guard<boost::mutex> lk(lock_);
             closed_ = true;
             hasData_.notify_all();
+            hasSpace_.notify_all();
         }
 
     private:
         mutable boost::mutex lock_;
         mutable boost::condition_variable hasData_;
+        mutable boost::condition_variable hasSpace_;
 
         std::queue<T> data_;
         bool closed_ = false;
+        const std::size_t maxSize_ = std::numeric_limits<std::size_t>::max();
     };
 }}}
