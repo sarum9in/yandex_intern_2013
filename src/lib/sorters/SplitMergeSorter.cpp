@@ -4,6 +4,8 @@
 #include "yandex/intern/detail/FileMemoryMap.hpp"
 #include "yandex/intern/detail/io.hpp"
 #include "yandex/intern/detail/radixSort.hpp"
+#include "yandex/intern/detail/SequencedReader.hpp"
+#include "yandex/intern/detail/SequencedWriter.hpp"
 
 #include "yandex/contest/SystemError.hpp"
 #include "yandex/contest/system/unistd/Operations.hpp"
@@ -33,11 +35,14 @@ namespace yandex{namespace intern{namespace sorters
     constexpr std::size_t memoryLimitBytes = 256 * 1024 * 1024;
     constexpr std::size_t fileSizeLimitBytes = memoryLimitBytes / 4;
     static_assert(fileSizeLimitBytes % sizeof(Data) == 0, "");
-    constexpr std::size_t mergeNumberLimit = memoryLimitBytes / (4 * BUFSIZ * sizeof(Data));
+
+    const std::size_t mergeNumberLimit = std::min(memoryLimitBytes / (4 * BUFSIZ * sizeof(Data)), static_cast<std::size_t>(unistd::getdtablesize()) / 2);
 
     SplitMergeSorter::SplitMergeSorter(const boost::filesystem::path& src, const boost::filesystem::path& dst):
         Sorter(src, dst),
-        root_(dst.parent_path() / boost::filesystem::unique_path())
+        root_(dst.parent_path() / boost::filesystem::unique_path()),
+        smallSortTasks_(4),
+        dumpSmallTasks_(4)
     {
         BOOST_VERIFY(boost::filesystem::create_directory(root_)); // directory is new
     }
@@ -54,7 +59,7 @@ namespace yandex{namespace intern{namespace sorters
 
     void SplitMergeSorter::main()
     {
-        for (std::size_t i = 0; i < 2; ++i)
+        for (std::size_t i = 0; i < 3; ++i)
             sortSmallGroup_.create_thread(boost::bind(&SplitMergeSorter::sortSmall, this));
         dumpSmallGroup_.create_thread(boost::bind(&SplitMergeSorter::dumpSmall, this));
         mergeGroup_.create_thread(boost::bind(&SplitMergeSorter::merge, this)); // single thread
@@ -69,6 +74,25 @@ namespace yandex{namespace intern{namespace sorters
 
     void SplitMergeSorter::split()
     {
+#if 1
+        detail::SequencedReader reader(source());
+        std::size_t size = fileSizeLimitBytes / sizeof(Data);
+        std::vector<Data> data(size);
+        std::size_t actuallyRead;
+        while (reader.read(data.data(), data.size(), &actuallyRead))
+        {
+            SLOG(__func__ << '(' << ')');
+            smallSortTasks_.push(std::move(data));
+            data.resize(size);
+        }
+        if (actuallyRead)
+        {
+            if (actuallyRead % sizeof(Data) != 0)
+                BOOST_THROW_EXCEPTION(InvalidFileSizeError() << InvalidFileSizeError::path(source()));
+            data.resize(actuallyRead / sizeof(Data));
+            smallSortTasks_.push(std::move(data));
+        }
+#else
         detail::FileMemoryMap map(source(), O_RDONLY);
         for (std::size_t offset = 0; offset < map.fileSize(); offset += fileSizeLimitBytes)
         {
@@ -78,6 +102,7 @@ namespace yandex{namespace intern{namespace sorters
             smallSortTasks_.push(detail::io::readFromMap(map.map()));
             map.unmap();
         }
+#endif
     }
 
     void SplitMergeSorter::sortSmall()
@@ -87,18 +112,50 @@ namespace yandex{namespace intern{namespace sorters
         {
             SLOG(__func__ << '(' << ')');
             detail::radix::sort(task);
+            //std::sort(task.begin(), task.end());
             dumpSmallTasks_.push(std::move(task));
+            SLOG('~' << __func__ << '(' << ')');
         }
     }
 
     void SplitMergeSorter::dumpSmall()
     {
-        std::vector<Data> task;
-        while (dumpSmallTasks_.pop(task))
+        std::vector<std::vector<Data>> tasks;
+        while ((tasks.resize(1), dumpSmallTasks_.popAll(tasks, 2)) || dumpSmallTasks_.pop(tasks.front()))
+        //while (tasks.resize(1), dumpSmallTasks_.pop(tasks.front()))
         {
             boost::filesystem::path path = root_ / boost::filesystem::unique_path();
-            detail::io::writeToFile(path, task);
+            SLOG(__func__ << '(' << tasks.size() << ", " << path << ')');
+            if (tasks.size() == 1)
+            {
+                // TODO or should plain write be used?
+                detail::io::writeToFile(path, tasks.front());
+            }
+            else
+            {
+                BOOST_ASSERT(tasks.size() > 1);
+                std::vector<std::size_t> pos(tasks.size());
+                const auto getNext =
+                    [&](const std::size_t n, Data &next)
+                    {
+                        BOOST_ASSERT(n < pos.size());
+                        if (pos[n] < tasks[n].size())
+                        {
+                            next = tasks[n][pos[n]++];
+                            return true;
+                        }
+                        else
+                        {
+                            return false;
+                        }
+                    };
+                std::size_t size = 0;
+                for (const std::vector<Data> &task: tasks)
+                    size += task.size();
+                mergeToFile(getNext, pos.size(), path, size);
+            }
             mergeTasks_.push(std::move(path));
+            SLOG('~' << __func__ << '(' << tasks.size() << ", " << path << ')');
         }
     }
 
@@ -126,7 +183,9 @@ namespace yandex{namespace intern{namespace sorters
             {
                 BOOST_ASSERT(!toMerge.empty());
                 const boost::filesystem::path path = root_ / boost::filesystem::unique_path();
+                SLOG(__func__);
                 mergeFiles(toMerge, path);
+                SLOG('~' << __func__);
                 toMerge.clear();
                 from->push_back(path);
             }
@@ -151,51 +210,92 @@ namespace yandex{namespace intern{namespace sorters
         boost::filesystem::rename(from->front(), destination());
     }
 
+    template <typename GetNext>
+    void SplitMergeSorter::mergeToFile(const GetNext &getNext, const std::size_t inputNumber, const boost::filesystem::path &output, const std::size_t outputSize)
+    {
+        SLOG(__func__ << '(' << inputNumber << ", " << output << ')');
+        detail::SequencedWriter writer(output);
+        writer.setBufferSize(1024 * 1024);
+        writer.truncate(outputSize * sizeof(Data));
+#if 0
+        std::vector<std::size_t> available;
+        std::vector<Data> next(inputNumber);
+        for (std::size_t i = 0; i < inputNumber; ++i)
+        {
+            if (getNext(i, next[i]))
+                available.push_back(i);
+        }
+        while (!available.empty())
+        {
+            std::size_t minI = 0;
+            Data min = next[available[minI]];
+            for (std::size_t i = 1; i < available.size(); ++i)
+            {
+                if (min > next[available[i]])
+                {
+                    min = next[available[i]];
+                    minI = i;
+                }
+            }
+            writer.write(min);
+            if (!getNext(available[minI], next[available[minI]]))
+                available.erase(available.begin() + minI);
+        }
+#else
+        typedef std::pair<Data, std::size_t> Pair;
+        std::priority_queue<Pair, std::vector<Pair>, std::greater<Pair>> q;
+        const auto update =
+            [&](const std::size_t n)
+            {
+                Data data;
+                if (getNext(n, data))
+                    q.emplace(data, n);
+            };
+        for (std::size_t i = 0; i < inputNumber; ++i)
+            update(i);
+        while (!q.empty())
+        {
+            const auto data_n = q.top();
+            q.pop();
+            update(data_n.second);
+            writer.write(data_n.first);
+        }
+#endif
+        writer.close();
+        SLOG('~' << __func__ << '(' << inputNumber << ", " << output << ')');
+    }
+
     void SplitMergeSorter::mergeFiles(const std::vector<boost::filesystem::path> &from, const boost::filesystem::path &to)
     {
-        BUNSAN_EXCEPTIONS_WRAP_BEGIN()
+        SLOG(__func__ << '(' << from.size() << ", " << to << ')');
+        const std::size_t n = from.size();
+        std::vector<std::unique_ptr<detail::SequencedReader>> fins(n);
+        std::size_t size = 0;
+        for (std::size_t i = 0; i < n; ++i)
         {
-            SLOG(__func__ << '(' << to << ')');
-            const std::size_t n = from.size();
-            std::vector<std::unique_ptr<bunsan::filesystem::ifstream>> fins(n);
-            for (std::size_t i = 0; i < n; ++i)
-                fins[i].reset(new bunsan::filesystem::ifstream(from[i], std::ios_base::binary));
-            const auto readNext =
-                [&](const std::size_t n, Data &next) -> bool
-                {
-                    if (fins[n]->read(reinterpret_cast<char *>(&next), sizeof(next)))
-                    {
-                        return true;
-                    }
-                    else
-                    {
-                        BOOST_ASSERT(fins[n]->gcount() == 0);
-                        fins[n]->close();
-                        boost::filesystem::remove(from[n]);
-                        return false;
-                    }
-                };
-            bunsan::filesystem::ofstream fout(to, std::ios_base::binary);
-            typedef std::pair<Data, std::size_t> Pair;
-            std::priority_queue<Pair, std::vector<Pair>, std::greater<Pair>> q;
-            const auto update =
-                [&](const std::size_t n)
-                {
-                    Data data;
-                    if (readNext(n, data))
-                        q.emplace(data, n);
-                };
-            for (std::size_t i = 0; i < n; ++i)
-                update(i);
-            while (!q.empty())
-            {
-                const auto data_n = q.top();
-                q.pop();
-                update(data_n.second);
-                fout.write(reinterpret_cast<const char *>(&data_n.first), sizeof(data_n.first));
-            }
-            fout.close();
+            fins[i].reset(new detail::SequencedReader(from[i]));
+            fins[i]->setBufferSize(1024 * 1024);
+            const std::size_t sizeI = fins[i]->size();
+            BOOST_ASSERT(sizeI % sizeof(Data) == 0);
+            size += sizeI / sizeof(Data);
         }
-        BUNSAN_EXCEPTIONS_WRAP_END()
+        const auto readNext =
+            [&](const std::size_t n, Data &next) -> bool
+            {
+                std::size_t actuallyRead_;
+                if (fins[n]->read(next, &actuallyRead_))
+                {
+                    return true;
+                }
+                else
+                {
+                    BOOST_ASSERT(actuallyRead_ == 0);
+                    fins[n]->close();
+                    boost::filesystem::remove(from[n]);
+                    return false;
+                }
+            };
+        mergeToFile(readNext, n, to, size);
+        SLOG('~' << __func__ << '(' << from.size() << ", " << to << ')');
     }
 }}}
