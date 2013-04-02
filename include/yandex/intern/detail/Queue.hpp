@@ -1,7 +1,5 @@
 #pragma once
 
-#include "yandex/intern/types.hpp"
-
 #include <boost/assert.hpp>
 #include <boost/optional.hpp>
 #include <boost/thread.hpp>
