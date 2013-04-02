@@ -21,6 +21,13 @@ namespace yandex{namespace intern{namespace test
     static std::uniform_int_distribution<Data> rnd(
         std::numeric_limits<Data>::min(), std::numeric_limits<Data>::max());
 
+    std::vector<Data> generate(const std::size_t size)
+    {
+        std::vector<Data> data(size);
+        std::generate(data.begin(), data.end(), [&](){return rnd(rng);});
+        return data;
+    }
+
     template <typename Sort>
     bool testSort(const Sort &sort)
     {
@@ -28,9 +35,8 @@ namespace yandex{namespace intern{namespace test
         constexpr std::size_t iterations = 10;
         for (std::size_t test = 0; test < iterations; ++test)
         {
-            std::vector<Data> original(size);
+            std::vector<Data> original = generate(size);
             std::vector<Data> sorted(size);
-            std::generate(original.begin(), original.end(), [&](){return rnd(rng);});
             sort(original.data(), sorted.data(), size);
             if (!is_sorted(sorted, original))
             {
