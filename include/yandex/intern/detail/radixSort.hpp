@@ -25,10 +25,21 @@ namespace yandex{namespace intern{namespace detail{namespace radix
                     Data *__restrict__ const dst,
                     const std::size_t size) noexcept __attribute__((nonnull));
 
+    void sort(std::vector<Data> &data,
+              std::vector<Data> &buffer) noexcept;
+
+    void sort(std::vector<Data> &data,
+              std::vector<Data> &buffer,
+              const std::size_t beginBlock,
+              const std::size_t endBlock) noexcept;
+
+    /// \return false on out of memory
+    bool sort(std::vector<Data> &data) noexcept;
+
     /// \return false on out of memory
     bool sort(std::vector<Data> &data,
-              const std::size_t beginBlock=0,
-              const std::size_t endBlock=iterations) noexcept;
+              const std::size_t beginBlock,
+              const std::size_t endBlock) noexcept;
 
     /// \note source and destination may be one file
     void sortFile(const boost::filesystem::path &source,

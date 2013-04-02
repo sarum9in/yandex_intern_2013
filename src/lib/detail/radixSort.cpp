@@ -77,29 +77,51 @@ namespace yandex{namespace intern{namespace detail{namespace radix
         return true;
     }
 
+    void sort(std::vector<Data> &data,
+              std::vector<Data> &buffer,
+              const std::size_t beginBlock,
+              const std::size_t endBlock) noexcept
+    {
+        using std::swap;
+
+        const std::size_t size = data.size();
+        BOOST_ASSERT(size == buffer.size());
+        Data *from = data.data();
+        Data *to = buffer.data();
+        for (std::size_t blockShift = beginBlock; blockShift < endBlock; ++blockShift)
+        {
+            sortIteration(from, to, size, blockShift);
+            swap(from, to);
+        }
+        if (from != data.data())
+            swap(data, buffer);
+    }
+
+    void sort(std::vector<Data> &data,
+              std::vector<Data> &buffer) noexcept
+    {
+        sort(data, buffer, 0, iterations);
+    }
+
     bool sort(std::vector<Data> &data,
               const std::size_t beginBlock,
               const std::size_t endBlock) noexcept
     {
-        const std::size_t size = data.size();
-        const std::unique_ptr<Data []> buffer(new Data[size]);
-        if (buffer)
+        try
         {
-            const Data *from = data.data();
-            Data *to = buffer.get();
-            for (std::size_t blockShift = beginBlock; blockShift < endBlock; ++blockShift)
-            {
-                sortIteration(from, to, size, blockShift);
-                from = to;
-                if (to == buffer.get())
-                    to = data.data();
-                else
-                    to = buffer.get();
-            }
-            if (from != data.data())
-                memcpy(data.data(), from, size * sizeof(Data));
+            std::vector<Data> buffer(data.size());
+            sort(data, buffer, beginBlock, endBlock);
+            return true;
         }
-        return static_cast<bool>(buffer);
+        catch (std::bad_alloc &)
+        {
+            return false;
+        }
+    }
+
+    bool sort(std::vector<Data> &data) noexcept
+    {
+        return sort(data, 0, iterations);
     }
 
     void sortFile(const boost::filesystem::path &source,

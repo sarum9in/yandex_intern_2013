@@ -23,6 +23,18 @@ BOOST_AUTO_TEST_CASE(sortMemory)
     ya::test::benchSort(yad::radix::sortMemory, "radix::sortMemory()");
 }
 
+BOOST_AUTO_TEST_CASE(sort)
+{
+    for (std::size_t i = 0; i < 1000; ++i)
+    {
+        std::vector<ya::Data> original = ya::test::generate(1000);
+        std::vector<ya::Data> data = original;
+        std::vector<ya::Data> buffer(original.size());
+        yad::radix::sort(data, buffer);
+        BOOST_CHECK(ya::test::is_sorted(data, original));
+    }
+}
+
 struct sortFileFixture
 {
     sortFileFixture():
