@@ -1,5 +1,6 @@
 #pragma once
 
+#include "yandex/intern/types.hpp"
 #include "yandex/intern/Sorter.hpp"
 #include "yandex/intern/detail/Queue.hpp"
 
