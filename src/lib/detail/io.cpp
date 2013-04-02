@@ -1,6 +1,9 @@
 #include "yandex/intern/detail/io.hpp"
-#include "yandex/intern/detail/FileMemoryMap.hpp"
+#include "yandex/intern/detail/SequencedReader.hpp"
+#include "yandex/intern/detail/SequencedWriter.hpp"
 #include "yandex/intern/Error.hpp"
+
+#include <boost/assert.hpp>
 
 #include <cstring>
 
@@ -22,16 +25,14 @@ namespace yandex{namespace intern{namespace detail{namespace io
 
     std::vector<Data> readFromFile(const boost::filesystem::path &path)
     {
-        const FileMemoryMap map(path, O_RDONLY, PROT_READ, MAP_PRIVATE);
-        try
-        {
-            return readFromMap(map.map());
-        }
-        catch (InvalidFileSizeError &e)
-        {
-            e << InvalidFileSizeError::path(path);
-            throw;
-        }
+        SequencedReader reader(path);
+        const std::size_t size = reader.size();
+        if (size % sizeof(Data) != 0)
+            BOOST_THROW_EXCEPTION(InvalidFileSizeError() << InvalidFileSizeError::path(path));
+        std::vector<Data> data(size / sizeof(Data));
+        BOOST_VERIFY(reader.read(data.data(), data.size()));
+        reader.close();
+        return data;
     }
 
     void writeToMap(MemoryMap &map, const std::vector<Data> &data)
@@ -44,19 +45,10 @@ namespace yandex{namespace intern{namespace detail{namespace io
 
     void writeToFile(const boost::filesystem::path &path, const std::vector<Data> &data)
     {
+        SequencedWriter writer(path);
         const std::size_t size = data.size() * sizeof(Data);
-        FileMemoryMap map(path, O_RDWR | O_CREAT);
-        if (map.fileSize() != size)
-            map.truncate(size);
-        map.mapFull(PROT_READ | PROT_WRITE, MAP_SHARED);
-        try
-        {
-            writeToMap(map.map(), data);
-        }
-        catch (InvalidFileSizeError &e)
-        {
-            e << InvalidFileSizeError::path(path);
-            throw;
-        }
+        writer.truncate(size);
+        writer.write(data.data(), data.size());
+        writer.close();
     }
 }}}}
