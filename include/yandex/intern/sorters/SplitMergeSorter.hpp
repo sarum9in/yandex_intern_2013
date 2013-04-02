@@ -29,7 +29,12 @@ namespace yandex{namespace intern{namespace sorters
         void sortSmall();
         void dumpSmall();
 
-        void mergeFiles(const std::vector<boost::filesystem::path> &from, const boost::filesystem::path &to);
+        template <typename GetNext>
+        void mergeToFile(const GetNext &getNext, const std::size_t inputNumber,
+                         const boost::filesystem::path &output, const std::size_t outputSize);
+
+        void mergeFiles(const std::vector<boost::filesystem::path> &from,
+                        const boost::filesystem::path &to);
 
     private:
         const boost::filesystem::path root_;
