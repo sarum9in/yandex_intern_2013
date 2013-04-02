@@ -17,6 +17,7 @@ namespace yandex{namespace intern
         NotOptional &operator=(const NotOptional &)=default;
 
         explicit operator bool() const { return !static_cast<const boost::optional<T> &>(*this); }
+        bool operator!() const { return !operator bool(); }
     };
 
     NotOptional<std::size_t> isSorted(const boost::filesystem::path &path);
