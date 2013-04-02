@@ -35,8 +35,112 @@ namespace yandex{namespace intern{namespace sorters
     constexpr std::size_t memoryLimitBytes = 256 * 1024 * 1024;
     constexpr std::size_t fileSizeLimitBytes = memoryLimitBytes / 4;
     static_assert(fileSizeLimitBytes % sizeof(Data) == 0, "");
+    constexpr std::size_t blockSizeLimitBytes = fileSizeLimitBytes / sizeof(Data);
 
     const std::size_t mergeNumberLimit = std::min(memoryLimitBytes / (4 * BUFSIZ * sizeof(Data)), static_cast<std::size_t>(unistd::getdtablesize()) / 2);
+
+    namespace
+    {
+        class FilesSource: private boost::noncopyable
+        {
+        public:
+            inline explicit FilesSource(const std::vector<boost::filesystem::path> &files):
+                files_(files),
+                inputs_(files.size())
+            {
+                for (std::size_t i = 0; i < files.size(); ++i)
+                {
+                    inputs_[i].reset(new detail::SequencedReader(files[i]));
+                    inputs_[i]->setBufferSize(1024 * 1024);
+                    const std::size_t sizeI = inputs_[i]->size();
+                    BOOST_ASSERT(sizeI % sizeof(Data) == 0);
+                    outputSize_ += sizeI / sizeof(Data);
+                }
+            }
+
+            inline bool next(const std::size_t n, Data &next)
+            {
+                std::size_t actuallyRead_;
+                if (inputs_[n]->read(next, &actuallyRead_))
+                {
+                    return true;
+                }
+                else
+                {
+                    BOOST_ASSERT(actuallyRead_ == 0);
+                    inputs_[n]->close();
+                    boost::filesystem::remove(files_[n]);
+                    return false;
+                }
+            }
+
+            inline std::size_t inputNumber() const
+            {
+                return inputs_.size();
+            }
+
+            inline std::size_t outputSize() const
+            {
+                return outputSize_;
+            }
+
+        private:
+            const std::vector<boost::filesystem::path> &files_;
+            std::vector<std::unique_ptr<detail::SequencedReader>> inputs_;
+            std::size_t outputSize_ = 0;
+        };
+
+        class VectorSource: private boost::noncopyable
+        {
+        public:
+            inline explicit VectorSource(std::vector<std::vector<Data>> &inputs):
+                inputs_(inputs),
+                pos_(inputs.size())
+            {
+                for (const std::vector<Data> &data: inputs)
+                    outputSize_ += data.size();
+            }
+
+            inline bool next(const std::size_t n, Data &next)
+            {
+                BOOST_ASSERT(n < pos_.size());
+                if (pos_[n] < inputs_[n].size())
+                {
+                    next = inputs_[n][pos_[n]++];
+                    if (pos_[n] == inputs_[n].size())
+                    {
+                        inputs_[n].clear();
+                        inputs_[n].shrink_to_fit();
+                    }
+                    return true;
+                }
+                else
+                {
+                    return false;
+                }
+            }
+
+            inline std::size_t inputNumber() const
+            {
+                return inputs_.size();
+            }
+
+            inline std::size_t outputSize() const
+            {
+                return outputSize_;
+            }
+
+            ~VectorSource()
+            {
+                // TODO free inputs_?
+            }
+
+        private:
+            std::vector<std::vector<Data>> &inputs_;
+            std::vector<std::size_t> pos_;
+            std::size_t outputSize_ = 0;
+        };
+    }
 
     SplitMergeSorter::SplitMergeSorter(const boost::filesystem::path& src, const boost::filesystem::path& dst):
         Sorter(src, dst),
@@ -76,7 +180,7 @@ namespace yandex{namespace intern{namespace sorters
     {
 #if 1
         detail::SequencedReader reader(source());
-        std::size_t size = fileSizeLimitBytes / sizeof(Data);
+        constexpr std::size_t size = blockSizeLimitBytes;
         std::vector<Data> data(size);
         std::size_t actuallyRead;
         while (reader.read(data.data(), data.size(), &actuallyRead))
@@ -134,25 +238,8 @@ namespace yandex{namespace intern{namespace sorters
             else
             {
                 BOOST_ASSERT(tasks.size() > 1);
-                std::vector<std::size_t> pos(tasks.size());
-                const auto getNext =
-                    [&](const std::size_t n, Data &next)
-                    {
-                        BOOST_ASSERT(n < pos.size());
-                        if (pos[n] < tasks[n].size())
-                        {
-                            next = tasks[n][pos[n]++];
-                            return true;
-                        }
-                        else
-                        {
-                            return false;
-                        }
-                    };
-                std::size_t size = 0;
-                for (const std::vector<Data> &task: tasks)
-                    size += task.size();
-                mergeToFile(getNext, pos.size(), path, size);
+                VectorSource source(tasks);
+                mergeToFile(source, path);
             }
             mergeTasks_.push(std::move(path));
             SLOG('~' << __func__ << '(' << tasks.size() << ", " << path << ')');
@@ -210,19 +297,19 @@ namespace yandex{namespace intern{namespace sorters
         boost::filesystem::rename(from->front(), destination());
     }
 
-    template <typename GetNext>
-    void SplitMergeSorter::mergeToFile(const GetNext &getNext, const std::size_t inputNumber, const boost::filesystem::path &output, const std::size_t outputSize)
+    template <typename Source>
+    void SplitMergeSorter::mergeToFile(Source &source, const boost::filesystem::path &output)
     {
-        SLOG(__func__ << '(' << inputNumber << ", " << output << ')');
+        SLOG(__func__ << '(' << source.inputNumber() << ", " << output << ')');
         detail::SequencedWriter writer(output);
         writer.setBufferSize(1024 * 1024);
-        writer.truncate(outputSize * sizeof(Data));
+        writer.truncate(source.outputSize() * sizeof(Data));
 #if 0
         std::vector<std::size_t> available;
-        std::vector<Data> next(inputNumber);
-        for (std::size_t i = 0; i < inputNumber; ++i)
+        std::vector<Data> next(source.inputNumber());
+        for (std::size_t i = 0; i < source.inputNumber(); ++i)
         {
-            if (getNext(i, next[i]))
+            if (source.next(i, next[i]))
                 available.push_back(i);
         }
         while (!available.empty())
@@ -238,7 +325,7 @@ namespace yandex{namespace intern{namespace sorters
                 }
             }
             writer.write(min);
-            if (!getNext(available[minI], next[available[minI]]))
+            if (!source.next(available[minI], next[available[minI]]))
                 available.erase(available.begin() + minI);
         }
 #else
@@ -248,10 +335,10 @@ namespace yandex{namespace intern{namespace sorters
             [&](const std::size_t n)
             {
                 Data data;
-                if (getNext(n, data))
+                if (source.next(n, data))
                     q.emplace(data, n);
             };
-        for (std::size_t i = 0; i < inputNumber; ++i)
+        for (std::size_t i = 0; i < source.inputNumber(); ++i)
             update(i);
         while (!q.empty())
         {
@@ -262,40 +349,14 @@ namespace yandex{namespace intern{namespace sorters
         }
 #endif
         writer.close();
-        SLOG('~' << __func__ << '(' << inputNumber << ", " << output << ')');
+        SLOG('~' << __func__ << '(' << source.inputNumber() << ", " << output << ')');
     }
 
     void SplitMergeSorter::mergeFiles(const std::vector<boost::filesystem::path> &from, const boost::filesystem::path &to)
     {
         SLOG(__func__ << '(' << from.size() << ", " << to << ')');
-        const std::size_t n = from.size();
-        std::vector<std::unique_ptr<detail::SequencedReader>> fins(n);
-        std::size_t size = 0;
-        for (std::size_t i = 0; i < n; ++i)
-        {
-            fins[i].reset(new detail::SequencedReader(from[i]));
-            fins[i]->setBufferSize(1024 * 1024);
-            const std::size_t sizeI = fins[i]->size();
-            BOOST_ASSERT(sizeI % sizeof(Data) == 0);
-            size += sizeI / sizeof(Data);
-        }
-        const auto readNext =
-            [&](const std::size_t n, Data &next) -> bool
-            {
-                std::size_t actuallyRead_;
-                if (fins[n]->read(next, &actuallyRead_))
-                {
-                    return true;
-                }
-                else
-                {
-                    BOOST_ASSERT(actuallyRead_ == 0);
-                    fins[n]->close();
-                    boost::filesystem::remove(from[n]);
-                    return false;
-                }
-            };
-        mergeToFile(readNext, n, to, size);
+        FilesSource source(from);
+        mergeToFile(source, to);
         SLOG('~' << __func__ << '(' << from.size() << ", " << to << ')');
     }
 }}}
