@@ -26,6 +26,8 @@ bunsan_add_shared_library(${PROJECT_NAME}
     src/lib/detail/FileMemoryMap.cpp
     src/lib/detail/copyFile.cpp
     src/lib/detail/io.cpp
+    src/lib/detail/SequencedReader.cpp
+    src/lib/detail/SequencedWriter.cpp
 )
 
 bunsan_use(${PROJECT_NAME})
