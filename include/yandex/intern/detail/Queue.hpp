@@ -20,26 +20,23 @@ namespace yandex{namespace intern{namespace detail
         Queue()=default;
         explicit Queue(const std::size_t maxSize): maxSize_(maxSize) {}
 
+        /// \returns objects.empty()
         bool popAll(std::vector<T> &objects, const std::size_t minSize=1)
         {
+            objects.clear();
             boost::unique_lock<boost::mutex> lk(lock_);
-            hasData_.wait(lk, [this, minSize]() -> bool { return closed_ || data_.size() >= minSize; });
-            if (data_.size() < minSize)
+            while (!closed_ && objects.size() < minSize)
             {
-                BOOST_ASSERT(closed_);
-                return false;
-            }
-            else
-            {
-                objects.clear();
+                while (!closed_ && data_.empty())
+                    hasData_.wait(lk);
                 while (!data_.empty())
                 {
                     objects.push_back(std::move(data_.front()));
                     data_.pop();
                 }
                 hasSpace_.notify_all();
-                return true;
             }
+            return !objects.empty();
         }
 
         boost::optional<std::vector<T>> popAll(const std::size_t minSize=1)
