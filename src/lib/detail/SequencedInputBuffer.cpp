@@ -1,4 +1,4 @@
-#include "yandex/intern/detail/SequencedReader.hpp"
+#include "yandex/intern/detail/SequencedInputBuffer.hpp"
 
 #include "yandex/contest/SystemError.hpp"
 #include "yandex/contest/system/unistd/Operations.hpp"
@@ -14,7 +14,7 @@ namespace yandex{namespace intern{namespace detail
     using namespace system;
     using namespace unistd;
 
-    SequencedReader::SequencedReader(const boost::filesystem::path &path, const int flags):
+    SequencedInputBuffer::SequencedInputBuffer(const boost::filesystem::path &path, const int flags):
         inFd_(open(path, O_RDONLY | flags)),
         buffer_(BUFSIZ),
         pos_(BUFSIZ)
@@ -24,10 +24,10 @@ namespace yandex{namespace intern{namespace detail
         //posix_fadvise(inFd_.get(), 0, 0, POSIX_FADV_SEQUENTIAL); // ignore error codes because it is advice
     }
 
-    SequencedReader::SequencedReader(const boost::filesystem::path &path):
-        SequencedReader(path, 0) {}
+    SequencedInputBuffer::SequencedInputBuffer(const boost::filesystem::path &path):
+        SequencedInputBuffer(path, 0) {}
 
-    void SequencedReader::setBufferSize(const std::size_t bufferSize)
+    void SequencedInputBuffer::setBufferSize(const std::size_t bufferSize)
     {
         BOOST_ASSERT(bufferSize);
         BOOST_ASSERT(pos_ <= buffer_.size());
@@ -40,7 +40,7 @@ namespace yandex{namespace intern{namespace detail
         pos_ = newPos;
     }
 
-    std::size_t SequencedReader::read(char *dst, const std::size_t size)
+    std::size_t SequencedInputBuffer::read(char *dst, const std::size_t size)
     {
         std::size_t read_ = 0;
         while (!eof() && read_ < size)
@@ -55,12 +55,12 @@ namespace yandex{namespace intern{namespace detail
         return read_;
     }
 
-    std::size_t SequencedReader::size() const
+    std::size_t SequencedInputBuffer::size() const
     {
         return fstat(inFd_.get()).size;
     }
 
-    bool SequencedReader::eof()
+    bool SequencedInputBuffer::eof()
     {
         if (pos_ == buffer_.size())
         {
@@ -74,13 +74,13 @@ namespace yandex{namespace intern{namespace detail
         }
     }
 
-    void SequencedReader::close()
+    void SequencedInputBuffer::close()
     {
         inFd_.close();
         pos_ = buffer_.size();
     }
 
-    void SequencedReader::fill()
+    void SequencedInputBuffer::fill()
     {
         BOOST_ASSERT(inFd_);
         BOOST_ASSERT(pos_ == buffer_.size());

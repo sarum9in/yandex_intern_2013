@@ -1,4 +1,4 @@
-#include "yandex/intern/detail/SequencedWriter.hpp"
+#include "yandex/intern/detail/SequencedOutputBuffer.hpp"
 
 #include "yandex/contest/SystemError.hpp"
 #include "yandex/contest/system/unistd/Operations.hpp"
@@ -12,17 +12,17 @@ namespace yandex{namespace intern{namespace detail
     using namespace system;
     using namespace unistd;
 
-    SequencedWriter::SequencedWriter(const boost::filesystem::path &path, const int flags, const int mode):
+    SequencedOutputBuffer::SequencedOutputBuffer(const boost::filesystem::path &path, const int flags, const int mode):
         outFd_(open(path, O_WRONLY | flags, mode)),
         buffer_(BUFSIZ) {}
 
-    SequencedWriter::SequencedWriter(const boost::filesystem::path &path, const int flags):
-        SequencedWriter(path, flags, 0666) {}
+    SequencedOutputBuffer::SequencedOutputBuffer(const boost::filesystem::path &path, const int flags):
+        SequencedOutputBuffer(path, flags, 0666) {}
 
-    SequencedWriter::SequencedWriter(const boost::filesystem::path &path):
-        SequencedWriter(path, O_CREAT | O_TRUNC) {}
+    SequencedOutputBuffer::SequencedOutputBuffer(const boost::filesystem::path &path):
+        SequencedOutputBuffer(path, O_CREAT | O_TRUNC) {}
 
-    SequencedWriter::~SequencedWriter()
+    SequencedOutputBuffer::~SequencedOutputBuffer()
     {
         if (outFd_)
         {
@@ -34,7 +34,7 @@ namespace yandex{namespace intern{namespace detail
         }
     }
 
-    void SequencedWriter::setBufferSize(const std::size_t bufferSize)
+    void SequencedOutputBuffer::setBufferSize(const std::size_t bufferSize)
     {
         BOOST_ASSERT(bufferSize);
         flush();
@@ -42,13 +42,13 @@ namespace yandex{namespace intern{namespace detail
         buffer_.shrink_to_fit();
     }
 
-    void SequencedWriter::truncate(const std::size_t size)
+    void SequencedOutputBuffer::truncate(const std::size_t size)
     {
         if (ftruncate(outFd_.get(), size) < 0)
             BOOST_THROW_EXCEPTION(contest::SystemError("ftruncate") << unistd::info::fd(outFd_.get()));
     }
 
-    void SequencedWriter::write(const char *src, const std::size_t size)
+    void SequencedOutputBuffer::write(const char *src, const std::size_t size)
     {
         std::size_t written = 0;
         while (written < size)
@@ -62,7 +62,7 @@ namespace yandex{namespace intern{namespace detail
         }
     }
 
-    void SequencedWriter::flush()
+    void SequencedOutputBuffer::flush()
     {
         BOOST_ASSERT(outFd_);
         std::size_t written = 0;
@@ -77,7 +77,7 @@ namespace yandex{namespace intern{namespace detail
         pos_ = 0;
     }
 
-    void SequencedWriter::close()
+    void SequencedOutputBuffer::close()
     {
         flush();
         outFd_.close();
