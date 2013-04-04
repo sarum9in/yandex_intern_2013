@@ -5,6 +5,7 @@
 
 #include "yandex/intern/generate.hpp"
 #include "yandex/intern/isSorted.hpp"
+#include "yandex/intern/detail/io.hpp"
 #include "yandex/intern/detail/radixSort.hpp"
 #include "yandex/intern/detail/stdSort.hpp"
 
@@ -68,11 +69,14 @@ BOOST_FIXTURE_TEST_CASE(sortFile, sortFileFixture)
     {
         BOOST_TEST_MESSAGE(i + 1 << "/" << iterations << " iteration");
         generate();
+        const std::vector<ya::Data> original = yad::io::readFromFile(src);
         BOOST_TEST_MESSAGE("generating...");
         yad::radix::sortFile(src, dst);
         BOOST_CHECK(ya::isSorted(dst));
+        BOOST_CHECK(ya::test::is_sorted(yad::io::readFromFile(dst), original));
         yad::radix::sortFile(src, src);
         BOOST_CHECK(ya::isSorted(src));
+        BOOST_CHECK(ya::test::is_sorted(yad::io::readFromFile(src), original));
     }
 }
 
