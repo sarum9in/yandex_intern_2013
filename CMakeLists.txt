@@ -28,6 +28,7 @@ bunsan_add_shared_library(${PROJECT_NAME}
     src/lib/detail/io.cpp
     src/lib/detail/SequencedInputBuffer.cpp
     src/lib/detail/SequencedOutputBuffer.cpp
+    src/lib/detail/Aio.cpp
 )
 
 bunsan_use(${PROJECT_NAME})
