@@ -10,6 +10,10 @@
 
 namespace yandex{namespace intern{namespace detail
 {
+    /*!
+     * \note It is guaranteed that fill will not be called until last moment (when it is needed).
+     * It allows user to choose when it should be called (manually).
+     */
     class SequencedInputBuffer: private boost::noncopyable
     {
     public:
@@ -25,12 +29,14 @@ namespace yandex{namespace intern{namespace detail
 
         std::size_t size() const;
 
-        /// \warning may try to read data to check EOF state
+        /// \warning calls fill() if dataAvailable() == 0
         bool eof();
 
         void close();
 
         void fill();
+
+        std::size_t dataAvailable() const;
 
     private:
         contest::system::unistd::Descriptor inFd_;

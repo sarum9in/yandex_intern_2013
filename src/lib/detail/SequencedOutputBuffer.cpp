@@ -87,4 +87,9 @@ namespace yandex{namespace intern{namespace detail
         flush();
         outFd_.close();
     }
+
+    std::size_t SequencedOutputBuffer::spaceAvailable() const
+    {
+        return buffer_.size() - pos_;
+    }
 }}}

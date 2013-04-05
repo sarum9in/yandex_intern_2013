@@ -110,12 +110,19 @@ BOOST_AUTO_TEST_CASE(fill)
     write(data);
     yad::SequencedReader reader(path);
     reader.setBufferSize(4);
+    BOOST_CHECK_EQUAL(reader.dataAvailable(), 0);
     BOOST_CHECK_EQUAL(reader.read(buffer, 2), 2);
+    BOOST_CHECK_EQUAL(reader.dataAvailable(), 2);
     BOOST_CHECK_EQUAL(memcmp(buffer, "so", 2), 0);
     reader.fill();
+    BOOST_CHECK_EQUAL(reader.dataAvailable(), 4);
     BOOST_CHECK_EQUAL(reader.read(buffer + 2, 4), 4);
+    BOOST_CHECK_EQUAL(reader.dataAvailable(), 0);
     BOOST_CHECK_EQUAL(memcmp(buffer + 2, "me t", 4), 0);
+    BOOST_CHECK_EQUAL(reader.dataAvailable(), 0);
     BOOST_CHECK_EQUAL(reader.read(buffer + 6, sizeof(data) - 6), sizeof(data) - 6);
+    BOOST_CHECK_EQUAL(reader.dataAvailable(), 0); // we know that because it is eof
+    BOOST_CHECK(reader.eof());
     BOOST_CHECK_EQUAL(buffer, data);
 }
 
@@ -155,11 +162,17 @@ BOOST_AUTO_TEST_CASE(flush)
     char buffer[sizeof(data)];
     yad::SequencedWriter writer(path);
     writer.setBufferSize(4);
+    BOOST_CHECK_EQUAL(writer.spaceAvailable(), 4);
     writer.write(data, 2);
+    BOOST_CHECK_EQUAL(writer.spaceAvailable(), 2);
     writer.flush();
+    BOOST_CHECK_EQUAL(writer.spaceAvailable(), 4);
     writer.write(data + 2, 4);
+    BOOST_CHECK_EQUAL(writer.spaceAvailable(), 0);
     writer.flush();
+    BOOST_CHECK_EQUAL(writer.spaceAvailable(), 4);
     writer.write(data + 6, 4);
+    BOOST_CHECK_EQUAL(writer.spaceAvailable(), 0);
     writer.write(data + 10, sizeof(data) - 10);
     writer.close();
     read(buffer);
