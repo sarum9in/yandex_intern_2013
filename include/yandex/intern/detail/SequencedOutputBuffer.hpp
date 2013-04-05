@@ -10,6 +10,10 @@
 
 namespace yandex{namespace intern{namespace detail
 {
+    /*!
+     * \note It is guaranteed that flush will not be called until last moment (when it is needed).
+     * It allows user to choose when it should be called (manually).
+     */
     class SequencedOutputBuffer: private boost::noncopyable
     {
     public:
@@ -34,6 +38,8 @@ namespace yandex{namespace intern{namespace detail
         void flush();
 
         void close();
+
+        std::size_t spaceAvailable() const;
 
     private:
         contest::system::unistd::Descriptor outFd_;

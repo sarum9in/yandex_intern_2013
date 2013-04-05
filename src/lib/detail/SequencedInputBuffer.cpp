@@ -104,4 +104,9 @@ namespace yandex{namespace intern{namespace detail
         buffer_.shrink_to_fit();
         pos_ = 0;
     }
+
+    std::size_t SequencedInputBuffer::dataAvailable() const
+    {
+        return buffer_.size() - pos_;
+    }
 }}}

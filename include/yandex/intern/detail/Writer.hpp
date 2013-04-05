@@ -56,6 +56,11 @@ namespace yandex{namespace intern{namespace detail
             outputBuffer_.close();
         }
 
+        inline std::size_t spaceAvailable() const
+        {
+            return outputBuffer_.spaceAvailable();
+        }
+
     private:
         OutputBuffer &outputBuffer_;
     };

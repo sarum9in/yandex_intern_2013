@@ -68,6 +68,11 @@ namespace yandex{namespace intern{namespace detail
             inputBuffer_.fill();
         }
 
+        inline std::size_t dataAvailable() const
+        {
+            return inputBuffer_.dataAvailable();
+        }
+
     private:
         InputBuffer &inputBuffer_;
     };
