@@ -18,6 +18,7 @@ namespace yandex{namespace intern{namespace detail
 
         explicit SequencedInputBuffer(const boost::filesystem::path &path);
 
+        std::size_t bufferSize() const;
         void setBufferSize(const std::size_t bufferSize);
 
         std::size_t read(char *dst, const std::size_t size);

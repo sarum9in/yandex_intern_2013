@@ -24,6 +24,7 @@ namespace yandex{namespace intern{namespace detail
 
         ~SequencedOutputBuffer();
 
+        std::size_t bufferSize() const;
         void setBufferSize(const std::size_t bufferSize);
 
         void truncate(const std::size_t size);

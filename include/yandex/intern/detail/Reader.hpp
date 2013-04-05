@@ -12,6 +12,11 @@ namespace yandex{namespace intern{namespace detail
     public:
         inline explicit Reader(InputBuffer &inputBuffer): inputBuffer_(inputBuffer) {}
 
+        inline std::size_t bufferSize() const
+        {
+            return inputBuffer_.bufferSize();
+        }
+
         inline void setBufferSize(const std::size_t bufferSize)
         {
             inputBuffer_.setBufferSize(bufferSize);

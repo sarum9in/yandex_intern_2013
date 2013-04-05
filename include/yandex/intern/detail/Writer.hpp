@@ -12,6 +12,11 @@ namespace yandex{namespace intern{namespace detail
     public:
         inline explicit Writer(OutputBuffer &outputBuffer): outputBuffer_(outputBuffer) {}
 
+        inline std::size_t bufferSize() const
+        {
+            return outputBuffer_.bufferSize();
+        }
+
         inline void setBufferSize(const std::size_t bufferSize)
         {
             outputBuffer_.setBufferSize(bufferSize);
