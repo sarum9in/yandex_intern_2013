@@ -33,7 +33,7 @@ namespace yandex{namespace intern{namespace detail
 
         void truncate(const std::size_t size);
 
-        void write(const char *src, const std::size_t size);
+        void write(const char *const src, const std::size_t size);
 
         void flush();
 
