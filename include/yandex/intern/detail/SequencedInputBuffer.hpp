@@ -37,6 +37,9 @@ namespace yandex{namespace intern{namespace detail
 
         void close();
 
+        bool opened() const;
+        bool closed() const;
+
         void fill();
 
         std::size_t dataAvailable() const;

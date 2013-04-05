@@ -70,7 +70,7 @@ namespace yandex{namespace intern{namespace detail
     {
         if (pos_ == buffer_.size())
         {
-            if (inFd_)
+            if (opened())
                 fill();
             return pos_ == buffer_.size();
         }
@@ -82,13 +82,26 @@ namespace yandex{namespace intern{namespace detail
 
     void SequencedInputBuffer::close()
     {
-        inFd_.close();
-        pos_ = buffer_.size();
+        if (opened())
+        {
+            inFd_.close();
+            pos_ = buffer_.size();
+        }
+    }
+
+    bool SequencedInputBuffer::opened() const
+    {
+        return static_cast<bool>(inFd_);
+    }
+
+    bool SequencedInputBuffer::closed() const
+    {
+        return !opened();
     }
 
     void SequencedInputBuffer::fill()
     {
-        BOOST_ASSERT(inFd_);
+        BOOST_ASSERT(opened());
         const std::size_t size = dataAvailable();
         memmove(buffer_.data(), buffer_.data() + pos_, size);
         std::size_t read_ = size;
