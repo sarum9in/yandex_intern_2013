@@ -35,6 +35,9 @@ namespace yandex{namespace intern{namespace detail
 
         void write(const char *const src, const std::size_t size);
 
+        /// Write data to available space without flush().
+        std::size_t writeAvailable(const char *const src, const std::size_t size);
+
         void flush();
 
         void close();

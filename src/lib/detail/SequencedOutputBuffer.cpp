@@ -60,11 +60,16 @@ namespace yandex{namespace intern{namespace detail
         {
             if (pos_ == buffer_.size())
                 flush();
-            const std::size_t req = std::min(buffer_.size() - pos_, size - written);
-            memcpy(buffer_.data() + pos_, src + written, req);
-            written += req;
-            pos_ += req;
+            written += writeAvailable(src + written, size - written);
         }
+    }
+
+    std::size_t SequencedOutputBuffer::writeAvailable(const char *const src, const std::size_t size)
+    {
+        const std::size_t req = std::min(spaceAvailable(), size);
+        memcpy(buffer_.data() + pos_, src, req);
+        pos_ += req;
+        return req;
     }
 
     void SequencedOutputBuffer::flush()
