@@ -24,14 +24,11 @@ namespace yandex{namespace intern{namespace detail
 
     SequencedOutputBuffer::~SequencedOutputBuffer()
     {
-        if (outFd_)
+        try
         {
-            try
-            {
-                close();
-            }
-            catch (...) {}
+            close();
         }
+        catch (...) {}
     }
 
     std::size_t SequencedOutputBuffer::bufferSize() const
@@ -74,7 +71,7 @@ namespace yandex{namespace intern{namespace detail
 
     void SequencedOutputBuffer::flush()
     {
-        BOOST_ASSERT(outFd_);
+        BOOST_ASSERT(opened());
         std::size_t written = 0;
         while (written < pos_)
         {
@@ -89,8 +86,21 @@ namespace yandex{namespace intern{namespace detail
 
     void SequencedOutputBuffer::close()
     {
-        flush();
-        outFd_.close();
+        if (opened())
+        {
+            flush();
+            outFd_.close();
+        }
+    }
+
+    bool SequencedOutputBuffer::opened() const
+    {
+        return static_cast<bool>(outFd_);
+    }
+
+    bool SequencedOutputBuffer::closed() const
+    {
+        return !opened();
     }
 
     std::size_t SequencedOutputBuffer::spaceAvailable() const

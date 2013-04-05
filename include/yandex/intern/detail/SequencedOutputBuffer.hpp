@@ -42,6 +42,9 @@ namespace yandex{namespace intern{namespace detail
 
         void close();
 
+        bool opened() const;
+        bool closed() const;
+
         std::size_t spaceAvailable() const;
 
     private:
