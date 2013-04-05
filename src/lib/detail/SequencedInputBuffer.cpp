@@ -36,7 +36,7 @@ namespace yandex{namespace intern{namespace detail
     {
         BOOST_ASSERT(bufferSize);
         BOOST_ASSERT(pos_ <= buffer_.size());
-        const std::size_t currentSize = buffer_.size() - pos_;
+        const std::size_t currentSize = dataAvailable();
         BOOST_ASSERT(currentSize <= bufferSize);
         const std::size_t newPos = bufferSize - currentSize;
         memmove(buffer_.data() + newPos, buffer_.data() + pos_, currentSize);
@@ -48,16 +48,17 @@ namespace yandex{namespace intern{namespace detail
     std::size_t SequencedInputBuffer::read(char *const dst, const std::size_t size)
     {
         std::size_t read_ = 0;
-        while (read_ < size && !eof())
-        {
-            if (pos_ == buffer_.size())
-                fill();
-            const std::size_t req = std::min(size - read_, buffer_.size() - pos_);
-            memcpy(dst + read_, buffer_.data() + pos_, req);
-            read_ += req;
-            pos_ += req;
-        }
+        while (read_ < size && !eof()) // note: eof() calls fill() when needed
+            read_ += readAvailable(dst + read_, size - read_);
         return read_;
+    }
+
+    std::size_t SequencedInputBuffer::readAvailable(char *const dst, const std::size_t size)
+    {
+        const std::size_t req = std::min(dataAvailable(), size);
+        memcpy(dst, buffer_.data() + pos_, req);
+        pos_ += req;
+        return req;
     }
 
     std::size_t SequencedInputBuffer::size() const
@@ -88,7 +89,7 @@ namespace yandex{namespace intern{namespace detail
     void SequencedInputBuffer::fill()
     {
         BOOST_ASSERT(inFd_);
-        const std::size_t size = buffer_.size() - pos_;
+        const std::size_t size = dataAvailable();
         memmove(buffer_.data(), buffer_.data() + pos_, size);
         std::size_t read_ = size;
         while (inFd_ && read_ < buffer_.size())

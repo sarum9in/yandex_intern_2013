@@ -27,6 +27,9 @@ namespace yandex{namespace intern{namespace detail
 
         std::size_t read(char *const dst, const std::size_t size);
 
+        /// Read all available data without fill().
+        std::size_t readAvailable(char *const dst, const std::size_t size);
+
         std::size_t size() const;
 
         /// \warning calls fill() if dataAvailable() == 0
