@@ -27,6 +27,11 @@ namespace yandex{namespace intern{namespace detail
     SequencedInputBuffer::SequencedInputBuffer(const boost::filesystem::path &path):
         SequencedInputBuffer(path, 0) {}
 
+    std::size_t SequencedInputBuffer::bufferSize() const
+    {
+        return buffer_.size();
+    }
+
     void SequencedInputBuffer::setBufferSize(const std::size_t bufferSize)
     {
         BOOST_ASSERT(bufferSize);

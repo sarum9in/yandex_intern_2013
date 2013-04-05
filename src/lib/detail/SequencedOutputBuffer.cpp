@@ -34,6 +34,11 @@ namespace yandex{namespace intern{namespace detail
         }
     }
 
+    std::size_t SequencedOutputBuffer::bufferSize() const
+    {
+        return buffer_.size();
+    }
+
     void SequencedOutputBuffer::setBufferSize(const std::size_t bufferSize)
     {
         BOOST_ASSERT(bufferSize);

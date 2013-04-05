@@ -79,6 +79,7 @@ BOOST_AUTO_TEST_CASE(smallBuffer)
     write(data);
     yad::SequencedReader reader(path);
     reader.setBufferSize(2);
+    BOOST_CHECK_EQUAL(reader.bufferSize(), 2);
     std::size_t actuallyRead;
     BOOST_CHECK(!reader.read(buffer, &actuallyRead));
     BOOST_CHECK_EQUAL(actuallyRead, sizeof(data));
@@ -112,6 +113,7 @@ BOOST_AUTO_TEST_CASE(smallBuffer)
     char buffer[sizeof(data)];
     yad::SequencedWriter writer(path);
     writer.setBufferSize(2);
+    BOOST_CHECK_EQUAL(writer.bufferSize(), 2);
     writer.write(data);
     writer.close();
     read(buffer);
