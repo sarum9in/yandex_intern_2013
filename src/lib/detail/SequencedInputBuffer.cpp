@@ -88,8 +88,9 @@ namespace yandex{namespace intern{namespace detail
     void SequencedInputBuffer::fill()
     {
         BOOST_ASSERT(inFd_);
-        BOOST_ASSERT(pos_ == buffer_.size());
-        std::size_t read_ = 0;
+        const std::size_t size = buffer_.size() - pos_;
+        memmove(buffer_.data(), buffer_.data() + pos_, size);
+        std::size_t read_ = size;
         while (inFd_ && read_ < buffer_.size())
         {
             const ssize_t lastRead = ::read(inFd_.get(), buffer_.data() + read_, buffer_.size() - read_);

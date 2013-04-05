@@ -30,7 +30,6 @@ namespace yandex{namespace intern{namespace detail
 
         void close();
 
-    private:
         void fill();
 
     private:

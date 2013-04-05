@@ -63,6 +63,11 @@ namespace yandex{namespace intern{namespace detail
             inputBuffer_.close();
         }
 
+        inline void fill()
+        {
+            inputBuffer_.fill();
+        }
+
     private:
         InputBuffer &inputBuffer_;
     };
