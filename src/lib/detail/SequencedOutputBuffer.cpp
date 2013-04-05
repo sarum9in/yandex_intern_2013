@@ -53,7 +53,7 @@ namespace yandex{namespace intern{namespace detail
             BOOST_THROW_EXCEPTION(contest::SystemError("ftruncate") << unistd::info::fd(outFd_.get()));
     }
 
-    void SequencedOutputBuffer::write(const char *src, const std::size_t size)
+    void SequencedOutputBuffer::write(const char *const src, const std::size_t size)
     {
         std::size_t written = 0;
         while (written < size)

@@ -45,7 +45,7 @@ namespace yandex{namespace intern{namespace detail
         pos_ = newPos;
     }
 
-    std::size_t SequencedInputBuffer::read(char *dst, const std::size_t size)
+    std::size_t SequencedInputBuffer::read(char *const dst, const std::size_t size)
     {
         std::size_t read_ = 0;
         while (read_ < size && !eof())
