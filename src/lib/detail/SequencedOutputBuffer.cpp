@@ -55,7 +55,7 @@ namespace yandex{namespace intern{namespace detail
         std::size_t written = 0;
         while (written < size)
         {
-            if (pos_ == buffer_.size())
+            if (spaceAvailable() == 0)
                 flush();
             written += writeAvailable(src + written, size - written);
         }
