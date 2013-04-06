@@ -101,6 +101,18 @@ namespace yandex{namespace intern{namespace detail
             hasData_.notify_all();
         }
 
+        bool fillIfOpened()
+        {
+            const boost::lock_guard<boost::mutex> lk(lock_);
+            if (inputBuffer_.opened())
+            {
+                inputBuffer_.fill();
+                hasData_.notify_all();
+                return true;
+            }
+            return false;
+        }
+
         std::size_t dataAvailable() const
         {
             const boost::lock_guard<boost::mutex> lk(lock_);
