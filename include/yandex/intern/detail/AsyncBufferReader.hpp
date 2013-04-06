@@ -11,7 +11,7 @@ namespace yandex{namespace intern{namespace detail
     {
     public:
         AsyncBufferReader(InputBuffer &inputBuffer, const Scheduler &scheduler):
-            inputBuffer_(inputBuffer), scheduler_(scheduler) {}
+            inputBuffer_(inputBuffer), size_(inputBuffer_.size()), scheduler_(scheduler) {}
 
         std::size_t bufferSize() const
         {
@@ -63,7 +63,10 @@ namespace yandex{namespace intern{namespace detail
         std::size_t size() const
         {
             const boost::lock_guard<boost::mutex> lk(lock_);
-            return inputBuffer_.size();
+            // note: we are not able to just return inputBuffer_.size()
+            // because inputBuffer_ may be closed before this wrapper
+            // by asynchronous fill()
+            return size_;
         }
 
         /// \warning calls fill() if dataAvailable() == 0
@@ -124,6 +127,7 @@ namespace yandex{namespace intern{namespace detail
         mutable boost::condition_variable hasData_;
 
         InputBuffer &inputBuffer_;
+        const std::size_t size_;
         const Scheduler scheduler_;
     };
 }}}
