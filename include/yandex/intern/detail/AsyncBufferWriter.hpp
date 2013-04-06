@@ -44,6 +44,7 @@ namespace yandex{namespace intern{namespace detail
                     });
                 const std::size_t req = size - written;
                 const std::size_t lastWritten = outputBuffer_.writeAvailable(src + written, req);
+                written += lastWritten;
                 if (lastWritten < req && outputBuffer_.closed())
                     return written;
             }
