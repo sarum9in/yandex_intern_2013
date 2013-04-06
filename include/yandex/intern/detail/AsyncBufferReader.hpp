@@ -49,6 +49,7 @@ namespace yandex{namespace intern{namespace detail
                 lk.unlock();
                 scheduler_();
             }
+            return read_;
         }
 
         /// Read all available data without fill().
