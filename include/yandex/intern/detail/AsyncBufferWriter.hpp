@@ -1,5 +1,6 @@
 #pragma once
 
+#include <boost/assert.hpp>
 #include <boost/noncopyable.hpp>
 #include <boost/thread.hpp>
 #include <boost/thread/condition_variable.hpp>
@@ -42,11 +43,10 @@ namespace yandex{namespace intern{namespace detail
                     {
                         return outputBuffer_.closed() || outputBuffer_.spaceAvailable() > 0;
                     });
+                BOOST_ASSERT(outputBuffer_.opened());
                 const std::size_t req = size - written;
                 const std::size_t lastWritten = outputBuffer_.writeAvailable(src + written, req);
                 written += lastWritten;
-                if (lastWritten < req && outputBuffer_.closed())
-                    return written;
             }
             if (outputBuffer_.spaceAvailable() == 0)
             {
