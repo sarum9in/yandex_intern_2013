@@ -38,6 +38,7 @@ namespace yandex{namespace intern{namespace detail
                     });
                 const std::size_t req = size - read_;
                 const std::size_t lastRead = inputBuffer_.readAvailable(dst, req);
+                read_ += lastRead;
                 if (lastRead < req && inputBuffer_.closed())
                 {
                     BOOST_ASSERT(inputBuffer_.eof());
