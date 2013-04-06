@@ -40,6 +40,10 @@ namespace yandex{namespace intern{namespace detail
     {
         try
         {
+            for (std::size_t id = 0; id < readers_.size(); ++id)
+                dispatchReader(id);
+            for (std::size_t id = 0; id < writers_.size(); ++id)
+                dispatchWriter(id);
             Task task;
             while (pending_.pop(task))
             {
@@ -62,12 +66,14 @@ namespace yandex{namespace intern{namespace detail
 
     void AsyncIoService::dispatchReader(const std::size_t id)
     {
-        readers_[id]->fill();
+        // FIXME check closed
+        readers_[id]->fillIfOpened();
     }
 
     void AsyncIoService::dispatchWriter(const std::size_t id)
     {
-        writers_[id]->flush();
+        // FIXME check closed
+        writers_[id]->flushIfOpened();
     }
 
     void AsyncIoService::scheduleReader(const std::size_t id)
