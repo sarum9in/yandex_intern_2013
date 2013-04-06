@@ -69,6 +69,18 @@ namespace yandex{namespace intern{namespace detail
             hasSpace_.notify_all();
         }
 
+        bool flushIfOpened()
+        {
+            const boost::lock_guard<boost::mutex> lk(lock_);
+            if (outputBuffer_.opened())
+            {
+                outputBuffer_.flush();
+                hasSpace_.notify_all();
+                return true;
+            }
+            return false;
+        }
+
         void close()
         {
             const boost::lock_guard<boost::mutex> lk(lock_);
