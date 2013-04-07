@@ -26,6 +26,12 @@ namespace yandex{namespace intern{namespace detail
             outputBuffer_.setBufferSize(bufferSize);
         }
 
+        void allocate(const std::size_t size)
+        {
+            const boost::lock_guard<boost::mutex> lk(lock_);
+            outputBuffer_.allocate(size);
+        }
+
         void truncate(const std::size_t size)
         {
             const boost::lock_guard<boost::mutex> lk(lock_);
