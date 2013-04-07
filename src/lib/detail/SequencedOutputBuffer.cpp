@@ -44,6 +44,13 @@ namespace yandex{namespace intern{namespace detail
         buffer_.shrink_to_fit();
     }
 
+    void SequencedOutputBuffer::allocate(const std::size_t size)
+    {
+        int ret;
+        if ((ret = posix_fallocate(outFd_.get(), 0, size)))
+            BOOST_THROW_EXCEPTION(contest::SystemError("posix_fallocate") << unistd::info::fd(outFd_.get()));
+    }
+
     void SequencedOutputBuffer::truncate(const std::size_t size)
     {
         if (ftruncate(outFd_.get(), size) < 0)
