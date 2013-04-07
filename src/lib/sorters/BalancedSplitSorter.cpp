@@ -126,7 +126,7 @@ namespace yandex{namespace intern{namespace sorters
             {
                 output[i].reset(new detail::SequencedWriter(part[i]));
                 output[i]->setBufferSize(1024 * 1024);
-                output[i]->truncate(sizeof(Data) * prefixTree[id2prefix[i]]);
+                output[i]->allocate(sizeof(Data) * prefixTree[id2prefix[i]]);
             }
             Data data;
             while (input.read(data))
@@ -144,7 +144,7 @@ namespace yandex{namespace intern{namespace sorters
         }
         // merge
         detail::SequencedWriter output(destination());
-        output.truncate(inputByteSize);
+        output.allocate(inputByteSize);
         for (const boost::filesystem::path &path: part)
         {
             std::vector<Data> data = detail::io::readFromFile(path);
