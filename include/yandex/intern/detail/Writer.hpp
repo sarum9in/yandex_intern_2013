@@ -22,6 +22,11 @@ namespace yandex{namespace intern{namespace detail
             outputBuffer_.setBufferSize(bufferSize);
         }
 
+        inline void allocate(const std::size_t size)
+        {
+            outputBuffer_.allocate(size);
+        }
+
         inline void truncate(const std::size_t size)
         {
             outputBuffer_.truncate(size);
