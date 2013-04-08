@@ -48,7 +48,7 @@ namespace yandex{namespace intern{namespace detail
     {
         int ret;
         if ((ret = posix_fallocate(outFd_.get(), 0, size)))
-            BOOST_THROW_EXCEPTION(contest::SystemError("posix_fallocate") << unistd::info::fd(outFd_.get()));
+            BOOST_THROW_EXCEPTION(contest::SystemError(ret, "posix_fallocate") << unistd::info::fd(outFd_.get()));
     }
 
     void SequencedOutputBuffer::truncate(const std::size_t size)
