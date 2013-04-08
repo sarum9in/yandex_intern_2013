@@ -31,6 +31,7 @@ namespace yandex{namespace intern{namespace sorters
     constexpr std::size_t suffixBitSize = 8 * suffixByteSize;
     constexpr std::size_t prefixSize = std::size_t(1) << prefixBitSize;
     constexpr std::size_t suffixSize = std::size_t(1) << suffixBitSize;
+    constexpr std::size_t suffixMask = suffixSize - 1;
 
     constexpr std::size_t prefixTreeSize = prefixSize * 2;
 
@@ -54,15 +55,23 @@ namespace yandex{namespace intern{namespace sorters
         for (boost::filesystem::path &path: part)
             path = root_ / boost::filesystem::unique_path();
         SLOG("Splitting source file.");
+        std::vector<std::vector<std::size_t>> countSort(id2prefix_.size());
         {
             detail::SequencedReader input(source());
             input.setBufferSize(1024 * 1024);
             std::vector<std::unique_ptr<detail::SequencedWriter>> output(part.size());
             for (std::size_t i = 0; i < output.size(); ++i)
             {
-                output[i].reset(new detail::SequencedWriter(part[i]));
-                output[i]->setBufferSize(1024 * 1024);
-                output[i]->resize(sizeof(Data) * id2size_[i]);
+                if (isCountSorted_[i])
+                {
+                    countSort[i].resize(suffixSize);
+                }
+                else
+                {
+                    output[i].reset(new detail::SequencedWriter(part[i]));
+                    output[i]->setBufferSize(1024 * 1024);
+                    output[i]->resize(sizeof(Data) * id2size_[i]);
+                }
             }
             Data data;
             while (input.read(data))
@@ -71,22 +80,38 @@ namespace yandex{namespace intern{namespace sorters
                 while (!isEnd_[prefix])
                     prefix >>= 1;
                 const std::size_t id = prefix2id_.at(prefix);
-                output[id]->write(data);
+                if (isCountSorted_[id])
+                    ++countSort[id][data & suffixMask];
+                else
+                    output[id]->write(data);
                 //std::cerr << std::setw(8) << std::setfill('0') << std::hex << data << " -> " << id << ' ' << part[id] << std::endl;
             }
             BOOST_ASSERT(input.eof());
             for (std::size_t i = 0; i < output.size(); ++i)
-                output[i]->close();
+                if (output[i])
+                    output[i]->close();
         }
         SLOG("Merging temporary files.");
         // merge
         detail::SequencedWriter output(destination());
         output.resize(inputByteSize_);
-        for (const boost::filesystem::path &path: part)
+        for (std::size_t id = 0; id < id2prefix_.size(); ++id)
         {
-            std::vector<Data> data = detail::io::readFromFile(path);
-            detail::radix::sort(data); // FIXME ML
-            output.write(data.data(), data.size());
+            SLOG("Processing id = " << id << " / " << id2prefix_.size() << ".");
+            if (isCountSorted_[id])
+            {
+                BOOST_ASSERT(countSort[id].size() == suffixSize);
+                const Data prefix = id2prefix_[id] << suffixBitSize;
+                for (Data suffix = 0; suffix < suffixSize; ++suffix)
+                    for (std::size_t i = 0; i < countSort[id][suffix]; ++i)
+                        output.write(prefix | suffix);
+            }
+            else
+            {
+                std::vector<Data> data = detail::io::readFromFile(part[id]);
+                detail::radix::sort(data); // FIXME ML
+                output.write(data.data(), data.size());
+            }
         }
         output.close();
         SLOG("Completed.");
@@ -161,11 +186,13 @@ namespace yandex{namespace intern{namespace sorters
             if (isEnd_[i])
                 prefixes.push_back(i);
         std::sort(prefixes.begin(), prefixes.end(), detail::bit::lexicalLess);
-        for (const std::size_t prefix: prefixes)
+        id2prefix_.resize(prefixes.size());
+        isCountSorted_.resize(prefixes.size());
+        for (std::size_t id = 0; id < prefixes.size(); ++id)
         {
-            const std::size_t id = id2prefix_.size();
-            id2prefix_.push_back(prefix);
+            const std::size_t prefix = prefixes[id];
             prefix2id_[prefix] = id;
+            isCountSorted_[id] = prefix >= prefixSize;
         }
 #endif
     }

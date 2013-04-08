@@ -29,5 +29,6 @@ namespace yandex{namespace intern{namespace sorters
         std::vector<Data> id2prefix_;
         std::vector<std::size_t> id2size_;
         std::vector<bool> isEnd_;
+        std::vector<bool> isCountSorted_;
     };
 }}}
