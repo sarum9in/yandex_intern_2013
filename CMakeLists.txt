@@ -41,6 +41,10 @@ yandex_contest_add_binary_targets(
     is_sorted
     sort
     text2binary
+
+    balanced_split_sort
+    in_memory_sort
+    split_merge_sort
 )
 
 bunsan_install_headers()
