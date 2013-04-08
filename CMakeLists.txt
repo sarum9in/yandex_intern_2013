@@ -34,23 +34,14 @@ bunsan_add_shared_library(${PROJECT_NAME}
 
 bunsan_use(${PROJECT_NAME})
 
-bunsan_add_executable(is_sorted
-    src/bin/is_sorted.cpp
+yandex_contest_add_binary_targets(
+    binary2text
+    generate_biased
+    generate_unbiased
+    is_sorted
+    sort
+    text2binary
 )
-
-bunsan_add_executable(binary2text
-    src/bin/binary2text.cpp
-)
-
-bunsan_add_executable(text2binary
-    src/bin/text2binary.cpp
-)
-
-bunsan_add_executable(generate
-    src/bin/generate.cpp
-)
-
-bunsan_add_executable(sort src/bin/sort.cpp)
 
 bunsan_install_headers()
 bunsan_install_targets(${PROJECT_NAME})

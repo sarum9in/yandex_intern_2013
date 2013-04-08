@@ -15,7 +15,7 @@ int main(int argc, char *argv[])
     }
     try
     {
-        yandex::intern::generate(argv[1], boost::lexical_cast<std::size_t>(argv[2]));
+        yandex::intern::generate_biased(argv[1], boost::lexical_cast<std::size_t>(argv[2]));
     }
     catch (std::exception &e)
     {
