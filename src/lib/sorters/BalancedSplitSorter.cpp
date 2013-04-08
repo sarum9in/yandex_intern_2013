@@ -97,7 +97,8 @@ namespace yandex{namespace intern{namespace sorters
         output.resize(inputByteSize_);
         for (std::size_t id = 0; id < id2prefix_.size(); ++id)
         {
-            SLOG("Processing id = " << id + 1 << " / " << id2prefix_.size() << ".");
+            SLOG("Processing id = " << id + 1 << " / " << id2prefix_.size() <<
+                 " (" << (isCountSorted_[id] ? "count" : "radix") << ") size = " << id2size_[id] << ".");
             if (isCountSorted_[id])
             {
                 BOOST_ASSERT(countSort[id].size() == suffixSize);
