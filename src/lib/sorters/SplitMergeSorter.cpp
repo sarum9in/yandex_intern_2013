@@ -225,7 +225,7 @@ namespace yandex{namespace intern{namespace sorters
     void SplitMergeSorter::dumpSmall()
     {
         std::vector<std::vector<Data>> tasks;
-        while ((tasks.resize(1), dumpSmallTasks_.popAll(tasks, 2)) || dumpSmallTasks_.pop(tasks.front()))
+        while (dumpSmallTasks_.popAll(tasks, 2))
         //while (tasks.resize(1), dumpSmallTasks_.pop(tasks.front()))
         {
             boost::filesystem::path path = root_ / boost::filesystem::unique_path();
