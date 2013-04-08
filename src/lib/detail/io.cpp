@@ -47,7 +47,7 @@ namespace yandex{namespace intern{namespace detail{namespace io
     {
         SequencedWriter writer(path);
         const std::size_t size = data.size() * sizeof(Data);
-        writer.allocate(size);
+        writer.resize(size);
         writer.write(data.data(), data.size());
         writer.close();
     }
