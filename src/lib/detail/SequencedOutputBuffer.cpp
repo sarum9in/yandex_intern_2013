@@ -44,6 +44,13 @@ namespace yandex{namespace intern{namespace detail
         buffer_.shrink_to_fit();
     }
 
+    void SequencedOutputBuffer::resize(const std::size_t size)
+    {
+        if (size)
+            allocate(size);
+        truncate(size);
+    }
+
     void SequencedOutputBuffer::allocate(const std::size_t size)
     {
         int ret;
