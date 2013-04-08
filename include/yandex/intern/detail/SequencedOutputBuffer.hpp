@@ -31,6 +31,8 @@ namespace yandex{namespace intern{namespace detail
         std::size_t bufferSize() const;
         void setBufferSize(const std::size_t bufferSize);
 
+        void resize(const std::size_t size);
+
         void allocate(const std::size_t size);
 
         void truncate(const std::size_t size);
