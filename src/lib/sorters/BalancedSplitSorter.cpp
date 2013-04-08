@@ -191,6 +191,7 @@ namespace yandex{namespace intern{namespace sorters
         for (std::size_t id = 0; id < prefixes.size(); ++id)
         {
             const std::size_t prefix = prefixes[id];
+            id2prefix_[id] = prefix;
             prefix2id_[prefix] = id;
             isCountSorted_[id] = prefix >= prefixSize;
         }
