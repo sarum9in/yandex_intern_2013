@@ -303,7 +303,7 @@ namespace yandex{namespace intern{namespace sorters
         SLOG(__func__ << '(' << source.inputNumber() << ", " << output << ')');
         detail::SequencedWriter writer(output);
         writer.setBufferSize(1024 * 1024);
-        writer.allocate(source.outputSize() * sizeof(Data));
+        writer.resize(source.outputSize() * sizeof(Data));
 #if 0
         std::vector<std::size_t> available;
         std::vector<Data> next(source.inputNumber());
