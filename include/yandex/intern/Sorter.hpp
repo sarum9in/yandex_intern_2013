@@ -8,6 +8,7 @@ namespace yandex{namespace intern
     class Sorter: private boost::noncopyable
     {
     public:
+        /// Default sort implementation.
         static void sort(const boost::filesystem::path &src, const boost::filesystem::path &dst);
 
     public:
@@ -22,6 +23,17 @@ namespace yandex{namespace intern
         const boost::filesystem::path &destination() const;
 
     private:
+        template <typename Sorter>
+        friend void sort(const boost::filesystem::path &src, const boost::filesystem::path &dst);
+
+    private:
         const boost::filesystem::path source_, destination_;
     };
+
+    template <typename SorterImplementation>
+    void sort(const boost::filesystem::path &src, const boost::filesystem::path &dst)
+    {
+        SorterImplementation sorter(src, dst);
+        static_cast<Sorter &>(sorter).sort();
+    }
 }}
