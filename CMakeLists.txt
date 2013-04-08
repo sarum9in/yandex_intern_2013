@@ -21,6 +21,7 @@ bunsan_add_shared_library(${PROJECT_NAME}
     src/lib/sorters/MergeSorter.cpp
     src/lib/sorters/SplitMergeSorter.cpp
 
+    src/lib/detail/bit.cpp
     src/lib/detail/radixSort.cpp
     src/lib/detail/stdSort.cpp
     src/lib/detail/MemoryMap.cpp
