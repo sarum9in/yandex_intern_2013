@@ -25,10 +25,9 @@ namespace yandex{namespace intern{namespace detail
         {
             objects.clear();
             boost::unique_lock<boost::mutex> lk(lock_);
-            while (!closed_ && objects.size() < minSize)
+            while ((!closed_ || !data_.empty()) && objects.size() < minSize)
             {
-                while (!closed_ && data_.empty())
-                    hasData_.wait(lk);
+                hasData_.wait(lk, [this]() -> bool { return closed_ || !data_.empty(); });
                 while (!data_.empty())
                 {
                     objects.push_back(std::move(data_.front()));

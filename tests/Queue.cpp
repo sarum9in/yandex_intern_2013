@@ -36,6 +36,15 @@ BOOST_AUTO_TEST_CASE(push_pop_all)
         BOOST_CHECK(!q.popAll(ret, 0));
         BOOST_CHECK(ret.empty());
     }
+    // last check
+    {
+        q.push(123);
+        q.close();
+        std::vector<int> ret;
+        BOOST_CHECK(q.popAll(ret, 2));
+        BOOST_REQUIRE_EQUAL(ret.size(), 1);
+        BOOST_CHECK_EQUAL(ret[0], 123);
+    }
 }
 
 BOOST_AUTO_TEST_CASE(close)
