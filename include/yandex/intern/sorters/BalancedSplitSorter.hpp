@@ -19,7 +19,7 @@ namespace yandex{namespace intern{namespace sorters
 
     private:
         void buildPrefixSplit();
-        void buildCompressedPrefixSplit(const std::size_t prefix);
+        void buildCompressedPrefixSplit();
 
     private:
         const boost::filesystem::path root_;

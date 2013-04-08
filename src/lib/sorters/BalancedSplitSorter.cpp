@@ -1,10 +1,13 @@
 #include "yandex/intern/sorters/BalancedSplitSorter.hpp"
 #include "yandex/intern/Error.hpp"
 #include "yandex/intern/types.hpp"
+#include "yandex/intern/detail/bit.hpp"
 #include "yandex/intern/detail/io.hpp"
 #include "yandex/intern/detail/SequencedReader.hpp"
 #include "yandex/intern/detail/SequencedWriter.hpp"
 #include "yandex/intern/detail/radixSort.hpp"
+
+#include "bunsan/logging/legacy.hpp"
 
 #include <boost/filesystem/operations.hpp>
 
@@ -46,11 +49,11 @@ namespace yandex{namespace intern{namespace sorters
     void BalancedSplitSorter::sort()
     {
         buildPrefixSplit();
-        // prepare files
+        SLOG("Preparing temporary files.");
         std::vector<boost::filesystem::path> part(id2prefix_.size());
         for (boost::filesystem::path &path: part)
             path = root_ / boost::filesystem::unique_path();
-        // split
+        SLOG("Splitting source file.");
         {
             detail::SequencedReader input(source());
             input.setBufferSize(1024 * 1024);
@@ -75,6 +78,7 @@ namespace yandex{namespace intern{namespace sorters
             for (std::size_t i = 0; i < output.size(); ++i)
                 output[i]->close();
         }
+        SLOG("Merging temporary files.");
         // merge
         detail::SequencedWriter output(destination());
         output.resize(inputByteSize_);
@@ -85,10 +89,12 @@ namespace yandex{namespace intern{namespace sorters
             output.write(data.data(), data.size());
         }
         output.close();
+        SLOG("Completed.");
     }
 
     void BalancedSplitSorter::buildPrefixSplit()
     {
+        SLOG("Building prefix mapping.");
         std::vector<std::size_t> prefixTree(prefixTreeSize);
         {
             detail::SequencedReader input(source());
@@ -103,7 +109,7 @@ namespace yandex{namespace intern{namespace sorters
             if (!input.eof())
                 BOOST_THROW_EXCEPTION(InvalidFileSizeError());
         }
-        // balance
+        SLOG("Balancing prefix mapping.");
         isEnd_.resize(prefixTreeSize);
         for (std::size_t i = prefixTreeSize - 1; i >= prefixSize; --i)
             isEnd_[i] = true;
@@ -126,18 +132,18 @@ namespace yandex{namespace intern{namespace sorters
                 isEnd_[i] = true;
             }
         }
-        // index structure
-        // FIXME count sort for small suffixes
-        buildCompressedPrefixSplit(1);
+        buildCompressedPrefixSplit();
         // save size
         id2size_.resize(id2prefix_.size());
         for (std::size_t id = 0; id < id2prefix_.size(); ++id)
             id2size_[id] = prefixTree[id2prefix_[id]];
     }
 
-    void BalancedSplitSorter::buildCompressedPrefixSplit(const std::size_t prefix)
+    void BalancedSplitSorter::buildCompressedPrefixSplit()
     {
-        // TODO implement non-recursive
+        // FIXME count sort for small suffixes
+        SLOG("Compressing prefix mapping.");
+#if 0
         if (isEnd_[prefix])
         {
             const std::size_t id = id2prefix_.size();
@@ -149,15 +155,17 @@ namespace yandex{namespace intern{namespace sorters
             buildCompressedPrefixSplit(prefix * 2);
             buildCompressedPrefixSplit(prefix * 2 + 1);
         }
-#if 0
+#else
+        std::vector<std::size_t> prefixes;
         for (std::size_t i = 0; i < prefixTreeSize; ++i)
+            if (isEnd_[i])
+                prefixes.push_back(i);
+        std::sort(prefixes.begin(), prefixes.end(), detail::bit::lexicalLess);
+        for (const std::size_t prefix: prefixes)
         {
-            if (isEnd[i])
-            {
-                const std::size_t id = id2prefix.size();
-                id2prefix.push_back(i);
-                prefix2id[i] = id;
-            }
+            const std::size_t id = id2prefix_.size();
+            id2prefix_.push_back(prefix);
+            prefix2id_[prefix] = id;
         }
 #endif
     }
