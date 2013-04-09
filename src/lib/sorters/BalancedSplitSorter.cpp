@@ -31,8 +31,12 @@ namespace yandex{namespace intern{namespace sorters
 
     constexpr std::size_t prefixTreeSize = prefixSize * 2;
 
+    constexpr std::size_t inputReaderBufferSize = 1024 * 1024;
+    constexpr std::size_t partWriterBufferSize = 16 * 1024;
+
     BalancedSplitSorter::BalancedSplitSorter(const boost::filesystem::path& src, const boost::filesystem::path& dst):
         Sorter(src, dst),
+        partOutput_(32), // FIXME tricky constant
         root_(dst.parent_path() / boost::filesystem::unique_path())
     {
         BOOST_VERIFY(boost::filesystem::create_directory(root_)); // directory is new
@@ -45,6 +49,7 @@ namespace yandex{namespace intern{namespace sorters
 
     void BalancedSplitSorter::sort()
     {
+        // TODO close queues and join threads on exception
         inputReader_ = boost::thread(boost::bind(&BalancedSplitSorter::inputReader, this));
         detail::Timer timer("prefix balance phase");
         buildPrefixSplit();
@@ -125,8 +130,9 @@ namespace yandex{namespace intern{namespace sorters
     void BalancedSplitSorter::split()
     {
         SLOG("Splitting source file.");
-        std::vector<std::unique_ptr<detail::SequencedWriter>> output(id2part_.size());
-        for (std::size_t i = 0; i < output.size(); ++i)
+        std::vector<PartWriteTask> partBuffer(id2prefix_.size());
+        std::vector<std::size_t> partPos(id2prefix_.size());
+        for (std::size_t i = 0; i < id2prefix_.size(); ++i)
         {
             if (isCountSorted_[i])
             {
@@ -135,11 +141,30 @@ namespace yandex{namespace intern{namespace sorters
             else
             {
                 id2part_[i] = root_ / boost::filesystem::unique_path();
-                output[i].reset(new detail::SequencedWriter(id2part_[i]));
-                output[i]->setBufferSize(1024 * 1024);
-                output[i]->resize(sizeof(Data) * id2size_[i]);
+                partBuffer[i].id = i;
+                partBuffer[i].data.resize(partWriterBufferSize);
             }
         }
+        partWriter_ = boost::thread(boost::bind(&BalancedSplitSorter::partWriter, this));
+        const auto flush =
+            [&](const std::size_t id)
+            {
+                if (partPos[id])
+                {
+                    partBuffer[id].data.resize(partPos[id]);
+                    partOutput_.push(std::move(partBuffer[id]));
+                    partBuffer[id].id = id;
+                    partBuffer[id].data.resize(partWriterBufferSize);
+                    partPos[id] = 0;
+                }
+            };
+        const auto push =
+            [&](const std::size_t id, const Data data)
+            {
+                partBuffer[id].data[partPos[id]++] = data;
+                if (partPos[id] == partWriterBufferSize)
+                    flush(id);
+            };
         std::vector<Data> buffer;
         while (inputForSplit_.pop(buffer))
         {
@@ -152,13 +177,13 @@ namespace yandex{namespace intern{namespace sorters
                 if (isCountSorted_[id])
                     ++countSort_[id][data & suffixMask];
                 else
-                    output[id]->write(data);
-                //std::cerr << std::setw(8) << std::setfill('0') << std::hex << data << " -> " << id << ' ' << part[id] << std::endl;
+                    push(id, data);
             }
         }
-        for (std::size_t i = 0; i < output.size(); ++i)
-            if (output[i])
-                output[i]->close();
+        for (std::size_t i = 0; i < id2prefix_.size(); ++i)
+            flush(i);
+        partOutput_.close();
+        partWriter_.join();
     }
 
     void BalancedSplitSorter::merge()
@@ -191,7 +216,6 @@ namespace yandex{namespace intern{namespace sorters
     void BalancedSplitSorter::inputReader()
     {
         // FIXME process exceptions
-        constexpr std::size_t bufsize = 1024 * 1024;
         const auto readInput =
             [&](detail::LockedStorage<std::vector<Data>> &to)
             {
@@ -199,7 +223,7 @@ namespace yandex{namespace intern{namespace sorters
                 inputByteSize_ = input.size();
                 while (!input.eof())
                 {
-                    std::vector<Data> data(bufsize);
+                    std::vector<Data> data(inputReaderBufferSize);
                     std::size_t actuallyRead;
                     if (!input.read(data.data(), data.size(), &actuallyRead))
                     {
@@ -213,5 +237,24 @@ namespace yandex{namespace intern{namespace sorters
             };
         readInput(inputForBuildPrefixSplit_);
         readInput(inputForSplit_);
+    }
+
+    void BalancedSplitSorter::partWriter()
+    {
+        // FIXME process exceptions
+        std::vector<std::unique_ptr<detail::SequencedWriter>> output(id2part_.size());
+        for (std::size_t i = 0; i < id2part_.size(); ++i)
+            if (!isCountSorted_[i])
+            {
+                output[i].reset(new detail::SequencedWriter(id2part_[i]));
+                output[i]->setBufferSize(1024 * 1024);
+                output[i]->resize(sizeof(Data) * id2size_[i]);
+            }
+        PartWriteTask task;
+        while (partOutput_.pop(task))
+            output[task.id]->write(task.data.data(), task.data.size());
+        for (std::size_t i = 0; i < output.size(); ++i)
+            if (output[i])
+                output[i]->close();
     }
 }}}
