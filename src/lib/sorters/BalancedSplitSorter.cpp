@@ -12,8 +12,11 @@
 
 #include <boost/filesystem/operations.hpp>
 
+#include <limits>
 #include <memory>
 #include <unordered_map>
+
+#include <cstdint>
 
 namespace yandex{namespace intern{namespace sorters
 {
@@ -64,7 +67,9 @@ namespace yandex{namespace intern{namespace sorters
     void BalancedSplitSorter::buildPrefixSplit()
     {
         SLOG("Building prefix mapping.");
-        std::vector<std::size_t> prefixTree(prefixTreeSize);
+        typedef std::uint32_t SizeType;
+        std::vector<SizeType> prefixTree(prefixTreeSize);
+        std::vector<bool> isCountSortedPrefix(prefixTreeSize);
         {
             std::vector<Data> buffer;
             while (inputForBuildPrefixSplit_.pop(buffer))
@@ -72,7 +77,12 @@ namespace yandex{namespace intern{namespace sorters
                 for (const Data data: buffer)
                 {
                     const std::size_t key = data >> suffixBitSize;
-                    ++prefixTree[key + prefixSize];
+                    const std::size_t prefix = key | prefixSize;
+                    if (!isCountSortedPrefix[prefix])
+                    {
+                        if (++prefixTree[prefix] == std::numeric_limits<SizeType>::max())
+                            isCountSortedPrefix[prefix] = true;
+                    }
                 }
             }
         }
@@ -84,7 +94,7 @@ namespace yandex{namespace intern{namespace sorters
         {
             const std::size_t left = 2 * i;
             const std::size_t right = left + 1;
-            if (isEnd_[left] && isEnd_[right] &&
+            if (!isCountSortedPrefix[left] && !isCountSortedPrefix[right] && isEnd_[left] && isEnd_[right] &&
 #if 0
                 prefixTree[left] < prefixSize && prefixTree[right] < prefixSize)
 #elif 1
