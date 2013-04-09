@@ -19,11 +19,6 @@ namespace yandex{namespace intern{namespace sorters
     namespace unistd = contest::system::unistd;
 
     constexpr std::size_t memoryLimitBytes = 256 * 1024 * 1024;
-    constexpr std::size_t dataBitSize = sizeof(Data) * 8;
-    constexpr std::size_t blockBitSize = dataBitSize / 2;
-    constexpr std::size_t fullBlock = (static_cast<std::size_t>(1) << blockBitSize) - 1;
-    constexpr std::size_t bucketsSize = static_cast<std::size_t>(1) << blockBitSize;
-    constexpr Data mask = static_cast<Data>(fullBlock);
 
     constexpr std::size_t prefixByteSize = sizeof(Data) - 1;
     constexpr std::size_t suffixByteSize = sizeof(Data) - prefixByteSize;
