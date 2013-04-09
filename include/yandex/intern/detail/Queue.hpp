@@ -1,6 +1,7 @@
 #pragma once
 
 #include <boost/assert.hpp>
+#include <boost/noncopyable.hpp>
 #include <boost/optional.hpp>
 #include <boost/thread.hpp>
 #include <boost/thread/locks.hpp>
@@ -14,7 +15,7 @@
 namespace yandex{namespace intern{namespace detail
 {
     template <typename T>
-    class Queue
+    class Queue: private boost::noncopyable
     {
     public:
         Queue()=default;
