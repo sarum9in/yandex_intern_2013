@@ -3,9 +3,10 @@
 #include "yandex/intern/types.hpp"
 #include "yandex/intern/detail/bit.hpp"
 #include "yandex/intern/detail/io.hpp"
+#include "yandex/intern/detail/radixSort.hpp"
 #include "yandex/intern/detail/SequencedReader.hpp"
 #include "yandex/intern/detail/SequencedWriter.hpp"
-#include "yandex/intern/detail/radixSort.hpp"
+#include "yandex/intern/detail/Timer.hpp"
 
 #include "bunsan/logging/legacy.hpp"
 
@@ -44,72 +45,12 @@ namespace yandex{namespace intern{namespace sorters
 
     void BalancedSplitSorter::sort()
     {
+        detail::Timer timer("prefix balance phase");
         buildPrefixSplit();
-        SLOG("Preparing temporary files.");
-        std::vector<boost::filesystem::path> part(id2prefix_.size());
-        for (boost::filesystem::path &path: part)
-            path = root_ / boost::filesystem::unique_path();
-        SLOG("Splitting source file.");
-        std::vector<std::vector<std::size_t>> countSort(id2prefix_.size());
-        {
-            detail::SequencedReader input(source());
-            input.setBufferSize(1024 * 1024);
-            std::vector<std::unique_ptr<detail::SequencedWriter>> output(part.size());
-            for (std::size_t i = 0; i < output.size(); ++i)
-            {
-                if (isCountSorted_[i])
-                {
-                    countSort[i].resize(suffixSize);
-                }
-                else
-                {
-                    output[i].reset(new detail::SequencedWriter(part[i]));
-                    output[i]->setBufferSize(1024 * 1024);
-                    output[i]->resize(sizeof(Data) * id2size_[i]);
-                }
-            }
-            Data data;
-            while (input.read(data))
-            {
-                std::size_t prefix = prefixSize + (data >> suffixBitSize);
-                while (!isEnd_[prefix])
-                    prefix >>= 1;
-                const std::size_t id = prefix2id_.at(prefix);
-                if (isCountSorted_[id])
-                    ++countSort[id][data & suffixMask];
-                else
-                    output[id]->write(data);
-                //std::cerr << std::setw(8) << std::setfill('0') << std::hex << data << " -> " << id << ' ' << part[id] << std::endl;
-            }
-            BOOST_ASSERT(input.eof());
-            for (std::size_t i = 0; i < output.size(); ++i)
-                if (output[i])
-                    output[i]->close();
-        }
-        SLOG("Merging temporary files.");
-        // merge
-        detail::SequencedWriter output(destination());
-        output.resize(inputByteSize_);
-        for (std::size_t id = 0; id < id2prefix_.size(); ++id)
-        {
-            SLOG("Processing id = " << id + 1 << " / " << id2prefix_.size() <<
-                 " (" << (isCountSorted_[id] ? "count" : "radix") << ") size = " << id2size_[id] << ".");
-            if (isCountSorted_[id])
-            {
-                BOOST_ASSERT(countSort[id].size() == suffixSize);
-                const Data prefix = id2prefix_[id] << suffixBitSize;
-                for (Data suffix = 0; suffix < suffixSize; ++suffix)
-                    for (std::size_t i = 0; i < countSort[id][suffix]; ++i)
-                        output.write(prefix | suffix);
-            }
-            else
-            {
-                std::vector<Data> data = detail::io::readFromFile(part[id]);
-                detail::radix::sort(data); // FIXME ML
-                output.write(data.data(), data.size());
-            }
-        }
-        output.close();
+        timer.start("split phase");
+        split();
+        timer.start("merge phase");
+        merge();
         SLOG("Completed.");
     }
 
@@ -162,21 +103,7 @@ namespace yandex{namespace intern{namespace sorters
 
     void BalancedSplitSorter::buildCompressedPrefixSplit()
     {
-        // FIXME count sort for small suffixes
         SLOG("Compressing prefix mapping.");
-#if 0
-        if (isEnd_[prefix])
-        {
-            const std::size_t id = id2prefix_.size();
-            id2prefix_.push_back(prefix);
-            prefix2id_[prefix] = id;
-        }
-        else
-        {
-            buildCompressedPrefixSplit(prefix * 2);
-            buildCompressedPrefixSplit(prefix * 2 + 1);
-        }
-#else
         std::vector<std::size_t> prefixes;
         for (std::size_t i = 0; i < prefixTreeSize; ++i)
             if (isEnd_[i])
@@ -184,6 +111,8 @@ namespace yandex{namespace intern{namespace sorters
         std::sort(prefixes.begin(), prefixes.end(), detail::bit::lexicalLess);
         id2prefix_.resize(prefixes.size());
         isCountSorted_.resize(prefixes.size());
+        countSort_.resize(prefixes.size());
+        id2part_.resize(prefixes.size());
         for (std::size_t id = 0; id < prefixes.size(); ++id)
         {
             const std::size_t prefix = prefixes[id];
@@ -191,6 +120,71 @@ namespace yandex{namespace intern{namespace sorters
             prefix2id_[prefix] = id;
             isCountSorted_[id] = prefix >= prefixSize;
         }
-#endif
+    }
+
+    void BalancedSplitSorter::split()
+    {
+        SLOG("Splitting source file.");
+        detail::SequencedReader input(source());
+        input.setBufferSize(1024 * 1024);
+        std::vector<std::unique_ptr<detail::SequencedWriter>> output(id2part_.size());
+        for (std::size_t i = 0; i < output.size(); ++i)
+        {
+            if (isCountSorted_[i])
+            {
+                countSort_[i].resize(suffixSize);
+            }
+            else
+            {
+                id2part_[i] = root_ / boost::filesystem::unique_path();
+                output[i].reset(new detail::SequencedWriter(id2part_[i]));
+                output[i]->setBufferSize(1024 * 1024);
+                output[i]->resize(sizeof(Data) * id2size_[i]);
+            }
+        }
+        Data data;
+        while (input.read(data))
+        {
+            std::size_t prefix = prefixSize + (data >> suffixBitSize);
+            while (!isEnd_[prefix])
+                prefix >>= 1;
+            const std::size_t id = prefix2id_.at(prefix);
+            if (isCountSorted_[id])
+                ++countSort_[id][data & suffixMask];
+            else
+                output[id]->write(data);
+            //std::cerr << std::setw(8) << std::setfill('0') << std::hex << data << " -> " << id << ' ' << part[id] << std::endl;
+        }
+        BOOST_ASSERT(input.eof());
+        for (std::size_t i = 0; i < output.size(); ++i)
+            if (output[i])
+                output[i]->close();
+    }
+
+    void BalancedSplitSorter::merge()
+    {
+        SLOG("Merging temporary files.");
+        detail::SequencedWriter output(destination());
+        output.resize(inputByteSize_);
+        for (std::size_t id = 0; id < id2prefix_.size(); ++id)
+        {
+            SLOG("Processing id = " << id + 1 << " / " << id2prefix_.size() <<
+                 " (" << (isCountSorted_[id] ? "count" : "radix") << ") size = " << id2size_[id] << ".");
+            if (isCountSorted_[id])
+            {
+                BOOST_ASSERT(countSort_[id].size() == suffixSize);
+                const Data prefix = id2prefix_[id] << suffixBitSize;
+                for (Data suffix = 0; suffix < suffixSize; ++suffix)
+                    for (std::size_t i = 0; i < countSort_[id][suffix]; ++i)
+                        output.write(prefix | suffix);
+            }
+            else
+            {
+                std::vector<Data> data = detail::io::readFromFile(id2part_[id]);
+                detail::radix::sort(data); // FIXME ML
+                output.write(data.data(), data.size());
+            }
+        }
+        output.close();
     }
 }}}

@@ -21,6 +21,10 @@ namespace yandex{namespace intern{namespace sorters
         void buildPrefixSplit();
         void buildCompressedPrefixSplit();
 
+        void split();
+
+        void merge();
+
     private:
         const boost::filesystem::path root_;
         std::size_t inputByteSize_;
@@ -30,5 +34,7 @@ namespace yandex{namespace intern{namespace sorters
         std::vector<std::size_t> id2size_;
         std::vector<bool> isEnd_;
         std::vector<bool> isCountSorted_;
+        std::vector<boost::filesystem::path> id2part_;
+        std::vector<std::vector<std::size_t>> countSort_;
     };
 }}}
