@@ -45,10 +45,12 @@ namespace yandex{namespace intern{namespace sorters
 
     void BalancedSplitSorter::sort()
     {
+        inputReader_ = boost::thread(boost::bind(&BalancedSplitSorter::inputReader, this));
         detail::Timer timer("prefix balance phase");
         buildPrefixSplit();
         timer.start("split phase");
         split();
+        inputReader_.join();
         timer.start("merge phase");
         merge();
         SLOG("Completed.");
@@ -59,17 +61,15 @@ namespace yandex{namespace intern{namespace sorters
         SLOG("Building prefix mapping.");
         std::vector<std::size_t> prefixTree(prefixTreeSize);
         {
-            detail::SequencedReader input(source());
-            input.setBufferSize(1024 * 1024);
-            inputByteSize_ = input.size();
-            Data data;
-            while (input.read(data))
+            std::vector<Data> buffer;
+            while (inputForBuildPrefixSplit_.pop(buffer))
             {
-                const std::size_t key = data >> suffixBitSize;
-                ++prefixTree[key + prefixSize];
+                for (const Data data: buffer)
+                {
+                    const std::size_t key = data >> suffixBitSize;
+                    ++prefixTree[key + prefixSize];
+                }
             }
-            if (!input.eof())
-                BOOST_THROW_EXCEPTION(InvalidFileSizeError());
         }
         SLOG("Balancing prefix mapping.");
         isEnd_.resize(prefixTreeSize);
@@ -125,8 +125,6 @@ namespace yandex{namespace intern{namespace sorters
     void BalancedSplitSorter::split()
     {
         SLOG("Splitting source file.");
-        detail::SequencedReader input(source());
-        input.setBufferSize(1024 * 1024);
         std::vector<std::unique_ptr<detail::SequencedWriter>> output(id2part_.size());
         for (std::size_t i = 0; i < output.size(); ++i)
         {
@@ -142,20 +140,22 @@ namespace yandex{namespace intern{namespace sorters
                 output[i]->resize(sizeof(Data) * id2size_[i]);
             }
         }
-        Data data;
-        while (input.read(data))
+        std::vector<Data> buffer;
+        while (inputForSplit_.pop(buffer))
         {
-            std::size_t prefix = prefixSize + (data >> suffixBitSize);
-            while (!isEnd_[prefix])
-                prefix >>= 1;
-            const std::size_t id = prefix2id_.at(prefix);
-            if (isCountSorted_[id])
-                ++countSort_[id][data & suffixMask];
-            else
-                output[id]->write(data);
-            //std::cerr << std::setw(8) << std::setfill('0') << std::hex << data << " -> " << id << ' ' << part[id] << std::endl;
+            for (const Data data: buffer)
+            {
+                std::size_t prefix = prefixSize + (data >> suffixBitSize);
+                while (!isEnd_[prefix])
+                    prefix >>= 1;
+                const std::size_t id = prefix2id_.at(prefix);
+                if (isCountSorted_[id])
+                    ++countSort_[id][data & suffixMask];
+                else
+                    output[id]->write(data);
+                //std::cerr << std::setw(8) << std::setfill('0') << std::hex << data << " -> " << id << ' ' << part[id] << std::endl;
+            }
         }
-        BOOST_ASSERT(input.eof());
         for (std::size_t i = 0; i < output.size(); ++i)
             if (output[i])
                 output[i]->close();
@@ -186,5 +186,32 @@ namespace yandex{namespace intern{namespace sorters
             }
         }
         output.close();
+    }
+
+    void BalancedSplitSorter::inputReader()
+    {
+        // FIXME process exceptions
+        constexpr std::size_t bufsize = 1024 * 1024;
+        const auto readInput =
+            [&](detail::LockedStorage<std::vector<Data>> &to)
+            {
+                detail::SequencedReader input(source());
+                inputByteSize_ = input.size();
+                while (!input.eof())
+                {
+                    std::vector<Data> data(bufsize);
+                    std::size_t actuallyRead;
+                    if (!input.read(data.data(), data.size(), &actuallyRead))
+                    {
+                        if (actuallyRead % sizeof(Data) != 0)
+                            BOOST_THROW_EXCEPTION(InvalidFileSizeError() << InvalidFileSizeError::path(source()));
+                        data.resize(actuallyRead / sizeof(Data));
+                    }
+                    to.push(std::move(data));
+                }
+                to.close();
+            };
+        readInput(inputForBuildPrefixSplit_);
+        readInput(inputForSplit_);
     }
 }}}
