@@ -130,12 +130,12 @@ namespace yandex{namespace intern{namespace sorters
     void BalancedSplitSorter::split()
     {
         SLOG("Splitting source file.");
-        for (std::size_t i = 0; i < id2prefix_.size(); ++i)
+        for (std::size_t id = 0; id < id2prefix_.size(); ++id)
         {
-            if (isCountSorted_[i])
-                countSort_[i].resize(suffixSize);
+            if (isCountSorted_[id])
+                countSort_[id].resize(suffixSize);
             else
-                id2part_[i] = root_ / boost::filesystem::unique_path();
+                id2part_[id] = root_ / boost::filesystem::unique_path();
         }
         partWriter_ = boost::thread(boost::bind(&BalancedSplitSorter::partWriter, this));
         std::size_t threads = boost::thread::hardware_concurrency();
@@ -153,16 +153,16 @@ namespace yandex{namespace intern{namespace sorters
         std::vector<PartWriteTask> partBuffer(id2prefix_.size());
         std::vector<std::size_t> partPos(id2prefix_.size());
         std::vector<std::vector<std::size_t>> countSort(id2prefix_.size());
-        for (std::size_t i = 0; i < id2prefix_.size(); ++i)
+        for (std::size_t id = 0; id < id2prefix_.size(); ++id)
         {
-            if (isCountSorted_[i])
+            if (isCountSorted_[id])
             {
-                countSort[i].resize(suffixSize);
+                countSort[id].resize(suffixSize);
             }
             else
             {
-                partBuffer[i].id = i;
-                partBuffer[i].data.resize(partWriterBufferSize);
+                partBuffer[id].id = id;
+                partBuffer[id].data.resize(partWriterBufferSize);
             }
         }
         const auto flush =
