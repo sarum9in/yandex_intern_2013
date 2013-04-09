@@ -130,22 +130,41 @@ namespace yandex{namespace intern{namespace sorters
     void BalancedSplitSorter::split()
     {
         SLOG("Splitting source file.");
+        for (std::size_t i = 0; i < id2prefix_.size(); ++i)
+        {
+            if (isCountSorted_[i])
+                countSort_[i].resize(suffixSize);
+            else
+                id2part_[i] = root_ / boost::filesystem::unique_path();
+        }
+        partWriter_ = boost::thread(boost::bind(&BalancedSplitSorter::partWriter, this));
+        std::size_t threads = boost::thread::hardware_concurrency();
+        if (!threads)
+            threads = 1;
+        for (std::size_t i = 0; i < threads; ++i)
+            splitWorkers_.create_thread(boost::bind(&BalancedSplitSorter::splitWorker, this));
+        splitWorkers_.join_all();
+        partOutput_.close();
+        partWriter_.join();
+    }
+
+    void BalancedSplitSorter::splitWorker()
+    {
         std::vector<PartWriteTask> partBuffer(id2prefix_.size());
         std::vector<std::size_t> partPos(id2prefix_.size());
+        std::vector<std::vector<std::size_t>> countSort(id2prefix_.size());
         for (std::size_t i = 0; i < id2prefix_.size(); ++i)
         {
             if (isCountSorted_[i])
             {
-                countSort_[i].resize(suffixSize);
+                countSort[i].resize(suffixSize);
             }
             else
             {
-                id2part_[i] = root_ / boost::filesystem::unique_path();
                 partBuffer[i].id = i;
                 partBuffer[i].data.resize(partWriterBufferSize);
             }
         }
-        partWriter_ = boost::thread(boost::bind(&BalancedSplitSorter::partWriter, this));
         const auto flush =
             [&](const std::size_t id)
             {
@@ -175,15 +194,28 @@ namespace yandex{namespace intern{namespace sorters
                     prefix >>= 1;
                 const std::size_t id = prefix2id_.at(prefix);
                 if (isCountSorted_[id])
-                    ++countSort_[id][data & suffixMask];
+                {
+                    ++countSort[id][data & suffixMask];
+                }
                 else
+                {
                     push(id, data);
+                }
             }
         }
-        for (std::size_t i = 0; i < id2prefix_.size(); ++i)
-            flush(i);
-        partOutput_.close();
-        partWriter_.join();
+        for (std::size_t id = 0; id < id2prefix_.size(); ++id)
+        {
+            if (isCountSorted_[id])
+            {
+                const boost::lock_guard<boost::mutex> lk(countSortLock_);
+                for (std::size_t i = 0; i < suffixSize; ++i)
+                    countSort_[id][i] += countSort[id][i];
+            }
+            else
+            {
+                flush(id);
+            }
+        }
     }
 
     void BalancedSplitSorter::merge()

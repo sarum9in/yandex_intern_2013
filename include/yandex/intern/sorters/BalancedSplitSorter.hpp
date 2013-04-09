@@ -41,6 +41,8 @@ namespace yandex{namespace intern{namespace sorters
 
         void partWriter();
 
+        void splitWorker();
+
     private:
         boost::thread inputReader_;
         detail::LockedStorage<std::vector<Data>> inputForBuildPrefixSplit_, inputForSplit_;
@@ -48,6 +50,8 @@ namespace yandex{namespace intern{namespace sorters
 
         boost::thread partWriter_;
         detail::Queue<PartWriteTask> partOutput_;
+
+        boost::thread_group splitWorkers_;
 
         const boost::filesystem::path root_;
         /// prefix is modified Data, it may be bigger at first steps
@@ -57,6 +61,8 @@ namespace yandex{namespace intern{namespace sorters
         std::vector<bool> isEnd_;
         std::vector<bool> isCountSorted_;
         std::vector<boost::filesystem::path> id2part_;
+
+        boost::mutex countSortLock_;
         std::vector<std::vector<std::size_t>> countSort_;
     };
 }}}
