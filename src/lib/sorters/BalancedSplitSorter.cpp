@@ -325,6 +325,7 @@ namespace yandex{namespace intern{namespace sorters
         }
         catch (...)
         {
+            partOutput_.closeError();
             error = std::current_exception();
         }
     }
