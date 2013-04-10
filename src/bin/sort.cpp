@@ -34,7 +34,9 @@ int main(int argc, char *argv[])
             std::cerr << "on action: " << *e.get<bunsan::system_error::what_message>() << '\n';
         if (e.get<bunsan::filesystem::error::path>())
             std::cerr << "file: " << *e.get<bunsan::filesystem::error::path>() << '\n';
-        std::cerr << std::endl;
+        std::cerr << '\n';
+        std::cerr << "full info:\n";
+        std::cerr << e.what() << std::endl;
         return 3;
     }
     catch (std::bad_alloc &)
