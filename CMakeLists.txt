@@ -32,7 +32,7 @@ bunsan_add_shared_library(${PROJECT_NAME}
 
 bunsan_use(${PROJECT_NAME})
 
-yandex_contest_add_binary_targets(
+yandex_contest_add_binary_targets(bin_targets
     binary2text
     generate_biased
     generate_unbiased
@@ -46,6 +46,6 @@ yandex_contest_add_binary_targets(
 )
 
 bunsan_install_headers()
-bunsan_install_targets(${PROJECT_NAME})
+bunsan_install_targets(${PROJECT_NAME} ${bin_targets})
 
 bunsan_include_tests()
