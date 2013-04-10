@@ -1,14 +1,14 @@
 #pragma once
 
+#include "yandex/intern/detail/AbstractQueue.hpp"
+
 #include <boost/assert.hpp>
-#include <boost/noncopyable.hpp>
 #include <boost/optional.hpp>
 #include <boost/thread.hpp>
 #include <boost/thread/locks.hpp>
 #include <boost/thread/mutex.hpp>
 #include <boost/thread/condition_variable.hpp>
 
-#include <exception>
 #include <limits>
 #include <queue>
 #include <utility>
@@ -16,7 +16,7 @@
 namespace yandex{namespace intern{namespace detail
 {
     template <typename T>
-    class LockedStorage: private boost::noncopyable
+    class LockedStorage: public AbstractQueue
     {
     public:
         LockedStorage()=default;
@@ -25,9 +25,9 @@ namespace yandex{namespace intern{namespace detail
         void push(P &&obj)
         {
             boost::unique_lock<boost::mutex> lk(lock_);
-            hasSpace_.wait(lk, [this]() -> bool { return closed_ || !initialized_; });
-            checkError();
-            BOOST_ASSERT(!closed_);
+            hasSpace_.wait(lk, [this]() -> bool { return this->closed__() || !initialized_; });
+            this->checkError();
+            BOOST_ASSERT(!this->closed__());
             BOOST_ASSERT(!initialized_);
             data_ = std::forward<P>(obj);
             initialized_ = true;
@@ -37,8 +37,8 @@ namespace yandex{namespace intern{namespace detail
         bool pop(T &obj)
         {
             boost::unique_lock<boost::mutex> lk(lock_);
-            hasData_.wait(lk, [this]() -> bool { return closed_ || initialized_; });
-            checkError();
+            hasData_.wait(lk, [this]() -> bool { return this->closed__() || initialized_; });
+            this->checkError();
             const bool ret = initialized_;
             if (ret)
                 obj = std::move(data_);
@@ -58,7 +58,7 @@ namespace yandex{namespace intern{namespace detail
         void close()
         {
             const boost::lock_guard<boost::mutex> lk(lock_);
-            closed_ = true;
+            this->close__();
             hasData_.notify_all();
             hasSpace_.notify_all();
         }
@@ -66,8 +66,7 @@ namespace yandex{namespace intern{namespace detail
         void closeError()
         {
             const boost::lock_guard<boost::mutex> lk(lock_);
-            closed_ = true;
-            error_ = std::current_exception();
+            this->closeError__();
             hasData_.notify_all();
             hasSpace_.notify_all();
         }
@@ -75,15 +74,7 @@ namespace yandex{namespace intern{namespace detail
         bool closed() const
         {
             const boost::lock_guard<boost::mutex> lk(lock_);
-            return closed_;
-        }
-
-    private:
-        /// \warning lock is required
-        void checkError()
-        {
-            if (error_)
-                std::rethrow_exception(error_);
+            return this->closed__();
         }
 
     private:
@@ -91,9 +82,7 @@ namespace yandex{namespace intern{namespace detail
         mutable boost::condition_variable hasData_;
         mutable boost::condition_variable hasSpace_;
 
-        bool closed_ = false;
         bool initialized_ = false;
         T data_;
-        std::exception_ptr error_;
     };
 }}}
