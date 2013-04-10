@@ -169,6 +169,8 @@ namespace yandex{namespace intern{namespace sorters
             std::size_t threads = boost::thread::hardware_concurrency();
             if (!threads)
                 threads = 1;
+            if (threads > 32)
+                threads = 32;
             for (std::size_t i = 0; i < threads; ++i)
                 splitWorkers_.create_thread(boost::bind(&BalancedSplitSorter::splitWorker, this));
             splitWorkers_.join_all();
