@@ -25,7 +25,8 @@ namespace yandex{namespace intern{namespace detail
         void push(P &&obj)
         {
             boost::unique_lock<boost::mutex> lk(lock_);
-            hasSpace_.wait(lk, [this]() -> bool { return this->closed__() || !initialized_; });
+            // FIXME this->initialized_ instead of initialized_ is a workaround for g++-4.7
+            hasSpace_.wait(lk, [this]() -> bool { return this->closed__() || !this->initialized_; });
             this->checkError();
             BOOST_ASSERT(!this->closed__());
             BOOST_ASSERT(!initialized_);
