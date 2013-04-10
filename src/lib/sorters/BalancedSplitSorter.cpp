@@ -52,16 +52,28 @@ namespace yandex{namespace intern{namespace sorters
 
     void BalancedSplitSorter::sort()
     {
-        // TODO close queues and join threads on exception
-        inputReader_ = boost::thread(boost::bind(&BalancedSplitSorter::inputReader, this));
-        detail::Timer timer("prefix balance phase");
-        buildPrefixSplit();
-        timer.start("split phase");
-        split();
-        inputReader_.join();
-        timer.start("merge phase");
-        merge();
-        SLOG("Completed.");
+        try
+        {
+            inputReader_ = boost::thread(boost::bind(&BalancedSplitSorter::inputReader, this));
+            detail::Timer timer("prefix balance phase");
+            buildPrefixSplit();
+            timer.start("split phase");
+            split();
+            inputReader_.join();
+            timer.start("merge phase");
+            merge();
+            SLOG("Completed.");
+        }
+        catch (...)
+        {
+            if (inputReader_.joinable())
+            {
+                inputForSplit_.closeError();
+                inputForBuildPrefixSplit_.closeError();
+                inputReader_.join();
+            }
+            throw;
+        }
     }
 
     void BalancedSplitSorter::buildPrefixSplit()
@@ -142,30 +154,44 @@ namespace yandex{namespace intern{namespace sorters
 
     void BalancedSplitSorter::split()
     {
-        SLOG("Splitting source file.");
-        for (std::size_t id = 0; id < id2prefix_.size(); ++id)
+        try
         {
-            if (isCountSorted_[id])
-                countSort_[id].resize(suffixSize);
-            else
-                id2part_[id] = root_ / boost::filesystem::unique_path();
+            SLOG("Splitting source file.");
+            for (std::size_t id = 0; id < id2prefix_.size(); ++id)
+            {
+                if (isCountSorted_[id])
+                    countSort_[id].resize(suffixSize);
+                else
+                    id2part_[id] = root_ / boost::filesystem::unique_path();
+            }
+            std::exception_ptr error;
+            partWriter_ = boost::thread(boost::bind(&BalancedSplitSorter::partWriter, this, boost::ref(error)));
+            std::size_t threads = boost::thread::hardware_concurrency();
+            if (!threads)
+                threads = 1;
+            for (std::size_t i = 0; i < threads; ++i)
+                splitWorkers_.create_thread(boost::bind(&BalancedSplitSorter::splitWorker, this));
+            splitWorkers_.join_all();
+            partOutput_.close();
+            partWriter_.join();
+            if (error)
+                std::rethrow_exception(error);
+            // compute id2size_ for count sorted
+            for (std::size_t id = 0; id < id2prefix_.size(); ++id)
+                if (isCountSorted_[id])
+                    id2size_[id] = std::accumulate(countSort_[id].begin(), countSort_[id].end(), std::size_t(0));
         }
-        std::exception_ptr error;
-        partWriter_ = boost::thread(boost::bind(&BalancedSplitSorter::partWriter, this, boost::ref(error)));
-        std::size_t threads = boost::thread::hardware_concurrency();
-        if (!threads)
-            threads = 1;
-        for (std::size_t i = 0; i < threads; ++i)
-            splitWorkers_.create_thread(boost::bind(&BalancedSplitSorter::splitWorker, this));
-        splitWorkers_.join_all();
-        partOutput_.close();
-        partWriter_.join();
-        if (error)
-            std::rethrow_exception(error);
-        // compute id2size_ for count sorted
-        for (std::size_t id = 0; id < id2prefix_.size(); ++id)
-            if (isCountSorted_[id])
-                id2size_[id] = std::accumulate(countSort_[id].begin(), countSort_[id].end(), std::size_t(0));
+        catch (...)
+        {
+            inputForSplit_.closeError();
+            splitWorkers_.join_all();
+            if (partWriter_.joinable())
+            {
+                partOutput_.closeError();
+                partWriter_.join();
+            }
+            throw;
+        }
     }
 
     void BalancedSplitSorter::splitWorker()
