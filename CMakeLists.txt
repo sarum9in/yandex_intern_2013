@@ -7,7 +7,7 @@ cmake_minimum_required(VERSION 2.8)
 include(YandexContestCommon)
 
 bunsan_use_bunsan(common)
-bunsan_use_boost(system filesystem serialization unit_test_framework program_options thread)
+bunsan_use_boost(system filesystem serialization unit_test_framework thread)
 bunsan_use(yandex_contest_common yandex_contest_system)
 
 bunsan_add_shared_library(${PROJECT_NAME}
