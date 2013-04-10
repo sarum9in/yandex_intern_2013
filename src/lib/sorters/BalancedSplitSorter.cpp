@@ -69,7 +69,6 @@ namespace yandex{namespace intern{namespace sorters
         SLOG("Building prefix mapping.");
         typedef std::uint32_t SizeType;
         std::vector<SizeType> prefixTree(prefixTreeSize);
-        std::vector<bool> isCountSortedPrefix(prefixTreeSize);
         {
             std::vector<Data> buffer;
             while (inputForBuildPrefixSplit_.pop(buffer))
@@ -78,11 +77,8 @@ namespace yandex{namespace intern{namespace sorters
                 {
                     const std::size_t key = data >> suffixBitSize;
                     const std::size_t prefix = key | prefixSize;
-                    if (!isCountSortedPrefix[prefix])
-                    {
-                        if (++prefixTree[prefix] == std::numeric_limits<SizeType>::max())
-                            isCountSortedPrefix[prefix] = true;
-                    }
+                    if (prefixTree[prefix] < std::numeric_limits<SizeType>::max())
+                        ++prefixTree[prefix];
                 }
             }
         }
@@ -94,7 +90,9 @@ namespace yandex{namespace intern{namespace sorters
         {
             const std::size_t left = 2 * i;
             const std::size_t right = left + 1;
-            if (!isCountSortedPrefix[left] && !isCountSortedPrefix[right] && isEnd_[left] && isEnd_[right] &&
+            if (prefixTree[left] < std::numeric_limits<SizeType>::max() &&
+                prefixTree[right] < std::numeric_limits<SizeType>::max() &&
+                isEnd_[left] && isEnd_[right] &&
 #if 0
                 prefixTree[left] < prefixSize && prefixTree[right] < prefixSize)
 #elif 1
@@ -113,7 +111,12 @@ namespace yandex{namespace intern{namespace sorters
         // save size
         id2size_.resize(id2prefix_.size());
         for (std::size_t id = 0; id < id2prefix_.size(); ++id)
-            id2size_[id] = prefixTree[id2prefix_[id]];
+        {
+            if (prefixTree[id2prefix_[id]] == std::numeric_limits<SizeType>::max())
+                id2size_[id] = std::numeric_limits<std::size_t>::max();
+            else
+                id2size_[id] = prefixTree[id2prefix_[id]];
+        }
     }
 
     void BalancedSplitSorter::buildCompressedPrefixSplit()
@@ -159,6 +162,10 @@ namespace yandex{namespace intern{namespace sorters
         partWriter_.join();
         if (error)
             std::rethrow_exception(error);
+        // compute id2size_ for count sorted
+        for (std::size_t id = 0; id < id2prefix_.size(); ++id)
+            if (isCountSorted_[id])
+                id2size_[id] = std::accumulate(countSort_[id].begin(), countSort_[id].end(), std::size_t(0));
     }
 
     void BalancedSplitSorter::splitWorker()
