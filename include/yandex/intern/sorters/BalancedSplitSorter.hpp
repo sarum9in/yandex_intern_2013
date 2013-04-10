@@ -39,7 +39,7 @@ namespace yandex{namespace intern{namespace sorters
             std::vector<Data> data;
         };
 
-        void partWriter();
+        void partWriter(std::exception_ptr &error);
 
         void splitWorker();
 

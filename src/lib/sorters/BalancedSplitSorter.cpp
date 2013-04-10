@@ -147,7 +147,8 @@ namespace yandex{namespace intern{namespace sorters
             else
                 id2part_[id] = root_ / boost::filesystem::unique_path();
         }
-        partWriter_ = boost::thread(boost::bind(&BalancedSplitSorter::partWriter, this));
+        std::exception_ptr error;
+        partWriter_ = boost::thread(boost::bind(&BalancedSplitSorter::partWriter, this, boost::ref(error)));
         std::size_t threads = boost::thread::hardware_concurrency();
         if (!threads)
             threads = 1;
@@ -156,75 +157,84 @@ namespace yandex{namespace intern{namespace sorters
         splitWorkers_.join_all();
         partOutput_.close();
         partWriter_.join();
+        if (error)
+            std::rethrow_exception(error);
     }
 
     void BalancedSplitSorter::splitWorker()
     {
-        std::vector<PartWriteTask> partBuffer(id2prefix_.size());
-        std::vector<std::size_t> partPos(id2prefix_.size());
-        std::vector<std::vector<std::size_t>> countSort(id2prefix_.size());
-        for (std::size_t id = 0; id < id2prefix_.size(); ++id)
+        try
         {
-            if (isCountSorted_[id])
+            std::vector<PartWriteTask> partBuffer(id2prefix_.size());
+            std::vector<std::size_t> partPos(id2prefix_.size());
+            std::vector<std::vector<std::size_t>> countSort(id2prefix_.size());
+            for (std::size_t id = 0; id < id2prefix_.size(); ++id)
             {
-                countSort[id].resize(suffixSize);
-            }
-            else
-            {
-                partBuffer[id].id = id;
-                partBuffer[id].data.resize(partWriterBufferSize);
-            }
-        }
-        const auto flush =
-            [&](const std::size_t id)
-            {
-                if (partPos[id])
-                {
-                    partBuffer[id].data.resize(partPos[id]);
-                    partOutput_.push(std::move(partBuffer[id]));
-                    partBuffer[id].id = id;
-                    partBuffer[id].data.resize(partWriterBufferSize);
-                    partPos[id] = 0;
-                }
-            };
-        const auto push =
-            [&](const std::size_t id, const Data data)
-            {
-                partBuffer[id].data[partPos[id]++] = data;
-                if (partPos[id] == partWriterBufferSize)
-                    flush(id);
-            };
-        std::vector<Data> buffer;
-        while (inputForSplit_.pop(buffer))
-        {
-            for (const Data data: buffer)
-            {
-                std::size_t prefix = prefixSize + (data >> suffixBitSize);
-                while (!isEnd_[prefix])
-                    prefix >>= 1;
-                const std::size_t id = prefix2id_.at(prefix);
                 if (isCountSorted_[id])
                 {
-                    ++countSort[id][data & suffixMask];
+                    countSort[id].resize(suffixSize);
                 }
                 else
                 {
-                    push(id, data);
+                    partBuffer[id].id = id;
+                    partBuffer[id].data.resize(partWriterBufferSize);
+                }
+            }
+            const auto flush =
+                [&](const std::size_t id)
+                {
+                    if (partPos[id])
+                    {
+                        partBuffer[id].data.resize(partPos[id]);
+                        partOutput_.push(std::move(partBuffer[id]));
+                        partBuffer[id].id = id;
+                        partBuffer[id].data.resize(partWriterBufferSize);
+                        partPos[id] = 0;
+                    }
+                };
+            const auto push =
+                [&](const std::size_t id, const Data data)
+                {
+                    partBuffer[id].data[partPos[id]++] = data;
+                    if (partPos[id] == partWriterBufferSize)
+                        flush(id);
+                };
+            std::vector<Data> buffer;
+            while (inputForSplit_.pop(buffer))
+            {
+                for (const Data data: buffer)
+                {
+                    std::size_t prefix = prefixSize + (data >> suffixBitSize);
+                    while (!isEnd_[prefix])
+                        prefix >>= 1;
+                    const std::size_t id = prefix2id_.at(prefix);
+                    if (isCountSorted_[id])
+                    {
+                        ++countSort[id][data & suffixMask];
+                    }
+                    else
+                    {
+                        push(id, data);
+                    }
+                }
+            }
+            for (std::size_t id = 0; id < id2prefix_.size(); ++id)
+            {
+                if (isCountSorted_[id])
+                {
+                    const boost::lock_guard<boost::mutex> lk(countSortLock_);
+                    for (std::size_t i = 0; i < suffixSize; ++i)
+                        countSort_[id][i] += countSort[id][i];
+                }
+                else
+                {
+                    flush(id);
                 }
             }
         }
-        for (std::size_t id = 0; id < id2prefix_.size(); ++id)
+        catch (...)
         {
-            if (isCountSorted_[id])
-            {
-                const boost::lock_guard<boost::mutex> lk(countSortLock_);
-                for (std::size_t i = 0; i < suffixSize; ++i)
-                    countSort_[id][i] += countSort[id][i];
-            }
-            else
-            {
-                flush(id);
-            }
+            partOutput_.closeError();
         }
     }
 
@@ -257,45 +267,58 @@ namespace yandex{namespace intern{namespace sorters
 
     void BalancedSplitSorter::inputReader()
     {
-        // FIXME process exceptions
         const auto readInput =
             [&](detail::LockedStorage<std::vector<Data>> &to)
             {
-                detail::SequencedReader input(source());
-                inputByteSize_ = input.size();
-                while (!input.eof())
+                try
                 {
-                    std::vector<Data> data(inputReaderBufferSize);
-                    std::size_t actuallyRead;
-                    if (!input.read(data.data(), data.size(), &actuallyRead))
+                    detail::SequencedReader input(source());
+                    inputByteSize_ = input.size();
+                    while (!input.eof())
                     {
-                        if (actuallyRead % sizeof(Data) != 0)
-                            BOOST_THROW_EXCEPTION(InvalidFileSizeError() << InvalidFileSizeError::path(source()));
-                        data.resize(actuallyRead / sizeof(Data));
+                        std::vector<Data> data(inputReaderBufferSize);
+                        std::size_t actuallyRead;
+                        if (!input.read(data.data(), data.size(), &actuallyRead))
+                        {
+                            if (actuallyRead % sizeof(Data) != 0)
+                                BOOST_THROW_EXCEPTION(InvalidFileSizeError() << InvalidFileSizeError::path(source()));
+                            data.resize(actuallyRead / sizeof(Data));
+                        }
+                        to.push(std::move(data));
                     }
-                    to.push(std::move(data));
+                    to.close();
                 }
-                to.close();
+                catch (...)
+                {
+                    to.closeError();
+                }
             };
+        // no exceptions here
         readInput(inputForBuildPrefixSplit_);
         readInput(inputForSplit_);
     }
 
-    void BalancedSplitSorter::partWriter()
+    void BalancedSplitSorter::partWriter(std::exception_ptr &error)
     {
-        // FIXME process exceptions
-        std::vector<std::unique_ptr<detail::SequencedWriter>> output(id2part_.size());
-        for (std::size_t i = 0; i < id2part_.size(); ++i)
-            if (!isCountSorted_[i])
-            {
-                output[i].reset(new detail::SequencedWriter(id2part_[i]));
-                output[i]->resize(sizeof(Data) * id2size_[i]);
-            }
-        PartWriteTask task;
-        while (partOutput_.pop(task))
-            output[task.id]->write(task.data.data(), task.data.size());
-        for (std::size_t i = 0; i < output.size(); ++i)
-            if (output[i])
-                output[i]->close();
+        try
+        {
+            std::vector<std::unique_ptr<detail::SequencedWriter>> output(id2part_.size());
+            for (std::size_t i = 0; i < id2part_.size(); ++i)
+                if (!isCountSorted_[i])
+                {
+                    output[i].reset(new detail::SequencedWriter(id2part_[i]));
+                    output[i]->resize(sizeof(Data) * id2size_[i]);
+                }
+            PartWriteTask task;
+            while (partOutput_.pop(task))
+                output[task.id]->write(task.data.data(), task.data.size());
+            for (std::size_t i = 0; i < output.size(); ++i)
+                if (output[i])
+                    output[i]->close();
+        }
+        catch (...)
+        {
+            error = std::current_exception();
+        }
     }
 }}}
