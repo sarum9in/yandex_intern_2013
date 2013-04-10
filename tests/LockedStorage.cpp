@@ -1,9 +1,8 @@
 #define BOOST_TEST_MODULE LockedStorage
 #include <boost/test/unit_test.hpp>
 
+#include "yandex/intern/Error.hpp"
 #include "yandex/intern/detail/LockedStorage.hpp"
-
-#include "yandex/contest/Error.hpp"
 
 #include <utility>
 
@@ -47,9 +46,9 @@ BOOST_AUTO_TEST_CASE(move)
     BOOST_CHECK_EQUAL(*obj, 3);
 }
 
-struct Error: virtual yandex::contest::Error {};
-
 BOOST_AUTO_TEST_SUITE(error)
+
+struct Error: virtual ya::Error {};
 
 BOOST_AUTO_TEST_CASE(push)
 {
