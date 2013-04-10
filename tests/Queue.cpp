@@ -1,6 +1,7 @@
 #define BOOST_TEST_MODULE Queue
 #include <boost/test/unit_test.hpp>
 
+#include "yandex/intern/Error.hpp"
 #include "yandex/intern/detail/Queue.hpp"
 
 #include <utility>
@@ -108,5 +109,40 @@ BOOST_AUTO_TEST_CASE(move_copyable)
     BOOST_CHECK_EQUAL(q.pop().get()[0], 2);
     BOOST_CHECK_EQUAL(q.pop().get()[0], 2);
 }
+
+BOOST_AUTO_TEST_SUITE(error)
+
+struct Error: virtual ya::Error {};
+
+BOOST_AUTO_TEST_CASE(push)
+{
+    yad::Queue<int> l;
+    try
+    {
+        throw Error();
+    }
+    catch (...)
+    {
+        l.closeError();
+    }
+    BOOST_CHECK_THROW(l.push(1), Error);
+}
+
+BOOST_AUTO_TEST_CASE(pop)
+{
+    yad::Queue<int> l;
+    try
+    {
+        l.push(1);
+        throw Error();
+    }
+    catch (...)
+    {
+        l.closeError();
+    }
+    BOOST_CHECK_THROW(l.pop(), Error);
+}
+
+BOOST_AUTO_TEST_SUITE_END() // error
 
 BOOST_AUTO_TEST_SUITE_END() // Queue

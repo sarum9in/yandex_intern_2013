@@ -1,7 +1,8 @@
 #pragma once
 
+#include "yandex/intern/detail/AbstractQueue.hpp"
+
 #include <boost/assert.hpp>
-#include <boost/noncopyable.hpp>
 #include <boost/optional.hpp>
 #include <boost/thread.hpp>
 #include <boost/thread/locks.hpp>
@@ -15,7 +16,7 @@
 namespace yandex{namespace intern{namespace detail
 {
     template <typename T>
-    class Queue: private boost::noncopyable
+    class Queue: public AbstractQueue
     {
     public:
         Queue()=default;
@@ -26,9 +27,10 @@ namespace yandex{namespace intern{namespace detail
         {
             objects.clear();
             boost::unique_lock<boost::mutex> lk(lock_);
-            while ((!closed_ || !data_.empty()) && objects.size() < minSize)
+            while ((!this->closed__() || !data_.empty()) && objects.size() < minSize)
             {
-                hasData_.wait(lk, [this]() -> bool { return closed_ || !data_.empty(); });
+                hasData_.wait(lk, [this]() -> bool { return this->closed__() || !data_.empty(); });
+                this->checkError();
                 while (!data_.empty())
                 {
                     objects.push_back(std::move(data_.front()));
@@ -50,10 +52,11 @@ namespace yandex{namespace intern{namespace detail
         bool pop(T &obj)
         {
             boost::unique_lock<boost::mutex> lk(lock_);
-            hasData_.wait(lk, [this]() -> bool { return closed_ || !data_.empty(); });
+            hasData_.wait(lk, [this]() -> bool { return this->closed__() || !data_.empty(); });
+            this->checkError();
             if (data_.empty())
             {
-                BOOST_ASSERT(closed_);
+                BOOST_ASSERT(this->closed__());
                 return false;
             }
             else
@@ -77,7 +80,8 @@ namespace yandex{namespace intern{namespace detail
         bool push(P &&obj)
         {
             boost::unique_lock<boost::mutex> lk(lock_);
-            hasSpace_.wait(lk, [this]() -> bool { return closed_ || data_.size() < maxSize_; });
+            hasSpace_.wait(lk, [this]() -> bool { return this->closed__() || data_.size() < maxSize_; });
+            this->checkError();
             if (data_.size() < maxSize_)
             {
                 data_.push(std::forward<P>(obj));
@@ -86,7 +90,7 @@ namespace yandex{namespace intern{namespace detail
             }
             else
             {
-                BOOST_ASSERT(closed_);
+                BOOST_ASSERT(this->closed__());
                 return false;
             }
         }
@@ -95,7 +99,15 @@ namespace yandex{namespace intern{namespace detail
         void close()
         {
             const boost::lock_guard<boost::mutex> lk(lock_);
-            closed_ = true;
+            this->close__();
+            hasData_.notify_all();
+            hasSpace_.notify_all();
+        }
+
+        void closeError()
+        {
+            const boost::lock_guard<boost::mutex> lk(lock_);
+            this->closeError__();
             hasData_.notify_all();
             hasSpace_.notify_all();
         }
@@ -106,7 +118,6 @@ namespace yandex{namespace intern{namespace detail
         mutable boost::condition_variable hasSpace_;
 
         std::queue<T> data_;
-        bool closed_ = false;
         const std::size_t maxSize_ = std::numeric_limits<std::size_t>::max();
     };
 }}}
