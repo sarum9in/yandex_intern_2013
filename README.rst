@@ -14,7 +14,7 @@ Requirements
 
 Build
 ~~~~~
-This project requires bash, git, cmake, make, g++>=4.7 and boost.
+This project requires bash, git, cmake>=2.8, make, g++>=4.7 and boost>=1.50.
 
 Run
 ~~~
@@ -29,8 +29,11 @@ Submodules
 bunsan_common, yandex_contest_common and yandex_contest_system ("no_lxc" branch) projects are used as submodules.
 They will be fetched by "configure.sh".
 
-Sort usage
-==========
+Usage
+=====
+
+sort
+----
 
 $ sort {source file} {destination file}
 
