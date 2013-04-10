@@ -14,7 +14,7 @@ Requirements
 
 Build
 ~~~~~
-This project required bash, git, cmake, make, g++>=4.7 and boost.
+This project requires bash, git, cmake, make, g++>=4.7 and boost.
 
 Run
 ~~~
