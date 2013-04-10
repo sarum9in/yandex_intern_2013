@@ -1,0 +1,9 @@
+[submodule "submodules/10_bunsan_common"]
+	path = submodules/10_bunsan_common
+	url = git://github.com/sarum9in/bunsan_common.git
+[submodule "submodules/30_yandex_contest_common"]
+	path = submodules/30_yandex_contest_common
+	url = git://github.com/sarum9in/yandex_contest_common.git
+[submodule "submodules/31_yandex_contest_system"]
+	path = submodules/31_yandex_contest_system
+	url = git://github.com/sarum9in/yandex_contest_system.git
