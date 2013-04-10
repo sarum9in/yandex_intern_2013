@@ -37,6 +37,9 @@ namespace yandex{namespace intern{namespace sorters
     constexpr std::size_t inputReaderBufferSize = 1024 * 1024;
     constexpr std::size_t partWriterBufferSize = 16 * 1024;
 
+    constexpr std::size_t maxPartByteSize = memoryLimitBytes / 4 + memoryLimitBytes / 16;
+    constexpr std::size_t maxPartSize = maxPartByteSize / sizeof(Data);
+
     BalancedSplitSorter::BalancedSplitSorter(const boost::filesystem::path& src, const boost::filesystem::path& dst):
         Sorter(src, dst),
         partOutput_(32), // FIXME tricky constant
@@ -102,20 +105,16 @@ namespace yandex{namespace intern{namespace sorters
         {
             const std::size_t left = 2 * i;
             const std::size_t right = left + 1;
-            if (prefixTree[left] < std::numeric_limits<SizeType>::max() &&
-                prefixTree[right] < std::numeric_limits<SizeType>::max() &&
+            const std::size_t leftSize = prefixTree[left];
+            const std::size_t rightSize = prefixTree[right];
+            if (leftSize < std::numeric_limits<SizeType>::max() &&
+                rightSize < std::numeric_limits<SizeType>::max() &&
                 isEnd_[left] && isEnd_[right] &&
-#if 0
-                prefixTree[left] < prefixSize && prefixTree[right] < prefixSize)
-#elif 1
-                prefixTree[left] + prefixTree[right] < prefixSize)
-#else
-                prefixTree[left] + prefixTree[right] < 10)
-#endif
+                leftSize + rightSize < maxPartSize)
             {
                 isEnd_[left] = false;
                 isEnd_[right] = false;
-                prefixTree[i] = prefixTree[left] + prefixTree[right];
+                prefixTree[i] = leftSize + rightSize;
                 isEnd_[i] = true;
             }
         }
