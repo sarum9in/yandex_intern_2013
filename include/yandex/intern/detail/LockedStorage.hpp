@@ -29,7 +29,7 @@ namespace yandex{namespace intern{namespace detail
             BOOST_ASSERT(!initialized_);
             data_ = std::forward<P>(obj);
             initialized_ = true;
-            hasData_.notify_all();
+            hasData_.notify_one();
         }
 
         bool pop(T &obj)
@@ -40,7 +40,7 @@ namespace yandex{namespace intern{namespace detail
             if (ret)
                 obj = std::move(data_);
             initialized_ = false;
-            hasSpace_.notify_all();
+            hasSpace_.notify_one();
             return ret;
         }
 
@@ -57,6 +57,7 @@ namespace yandex{namespace intern{namespace detail
             const boost::lock_guard<boost::mutex> lk(lock_);
             closed_ = true;
             hasData_.notify_all();
+            hasSpace_.notify_all();
         }
 
         bool closed() const
