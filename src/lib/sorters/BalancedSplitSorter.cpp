@@ -289,7 +289,6 @@ namespace yandex{namespace intern{namespace sorters
             if (!isCountSorted_[i])
             {
                 output[i].reset(new detail::SequencedWriter(id2part_[i]));
-                output[i]->setBufferSize(1024 * 1024);
                 output[i]->resize(sizeof(Data) * id2size_[i]);
             }
         PartWriteTask task;
