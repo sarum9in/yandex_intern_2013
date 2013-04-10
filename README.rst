@@ -20,6 +20,10 @@ Run
 ~~~
 This project requires boost.
 
+Boost
+~~~~~
+This project required the following boost libraries: system, filesystem, serialization, unit_test_framework and thread.
+
 Submodules
 ~~~~~~~~~~
 bunsan_common, yandex_contest_common and yandex_contest_system ("no_lxc" branch) projects are used as submodules.
