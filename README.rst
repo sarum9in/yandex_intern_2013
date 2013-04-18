@@ -22,7 +22,7 @@ This project requires boost.
 
 Boost
 ~~~~~
-This project required the following boost libraries: system, filesystem, serialization, unit_test_framework and thread.
+This project requires the following boost libraries: system, filesystem, serialization, unit_test_framework and thread.
 
 Submodules
 ~~~~~~~~~~
