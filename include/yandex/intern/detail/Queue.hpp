@@ -1,6 +1,6 @@
 #pragma once
 
-#include "yandex/intern/detail/AbstractQueue.hpp"
+#include "yandex/intern/detail/BaseQueue.hpp"
 
 #include <boost/assert.hpp>
 #include <boost/optional.hpp>
@@ -16,7 +16,7 @@
 namespace yandex{namespace intern{namespace detail
 {
     template <typename T>
-    class Queue: public AbstractQueue
+    class Queue: public BaseQueue
     {
     public:
         Queue()=default;

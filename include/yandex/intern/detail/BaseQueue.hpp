@@ -6,10 +6,10 @@
 
 namespace yandex{namespace intern{namespace detail
 {
-    class AbstractQueue: private boost::noncopyable
+    class BaseQueue: private boost::noncopyable
     {
     public:
-        AbstractQueue()=default;
+        BaseQueue()=default;
 
     protected:
         inline void checkError()
